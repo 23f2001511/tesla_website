@@ -1,8 +1,9 @@
 'use client';
 
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+
 import { 
   LayoutDashboard, 
   Users, 
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -34,6 +36,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Gallery', href: '/admin/gallery', icon: ImageIcon },
     { name: 'Announcements', href: '/admin/announcements', icon: Bell },
   ];
+
+
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+      });
+
+      router.push('/login');
+    } catch (error) {
+      console.error('Logout Error:', error);
+    }
+  };
 
   return (
     <div className="pt-20 min-h-screen flex bg-background">
@@ -83,8 +99,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Settings className="w-5 h-5" />
               Settings
             </Link>
-            <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:bg-red-400/10 transition-colors">
-              <LogOut className="w-5 h-5" />
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:bg-red-400/10 transition-colors">
+            <LogOut className="w-5 h-5" />
               Logout
             </button>
           </div>

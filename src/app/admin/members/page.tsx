@@ -1,17 +1,93 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Search, Filter, MoreVertical, Edit2, Trash2, CheckCircle, XCircle } from 'lucide-react';
 
 export default function AdminMembers() {
   const [search, setSearch] = useState('');
 
-  const members = [
-    { id: '1', name: 'Aarav Mehta', email: 'aarav@college.edu', role: 'President', status: 'Active', joinDate: '2023-08-12' },
-    { id: '2', name: 'Diya Sharma', email: 'diya@college.edu', role: 'Vice President', status: 'Active', joinDate: '2023-08-15' },
-    { id: '3', name: 'Rohan Verma', email: 'rohan@college.edu', role: 'General', status: 'Inactive', joinDate: '2024-01-10' },
-    { id: '4', name: 'Ananya Singh', email: 'ananya@college.edu', role: 'General', status: 'Pending', joinDate: '2024-05-20' },
-  ];
+  const [members, setMembers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+
+
+
+  const [showModal, setShowModal] = useState(false);
+
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'TeamMember',
+    team: '',
+  });
+
+
+
+
+
+  useEffect(() => {
+  const fetchMembers = async () => {
+    try {
+      const res = await fetch('/api/admin/members');
+      const data = await res.json();
+
+      if (data.success) {
+        setMembers(data.members);
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchMembers();
+  }, []);
+
+
+
+  const handleCreateMember = async () => {
+    try {
+      const res = await fetch('/api/admin/members', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || 'Failed to create member');
+        return;
+      }
+
+      alert('Member Created Successfully');
+
+      setShowModal(false);
+
+      setFormData({
+        name: '',
+        email: '',
+        password: '',
+        role: 'TeamMember',
+        team: '',
+      });
+
+      const membersRes = await fetch('/api/admin/members');
+      const membersData = await membersRes.json();
+
+      if (membersData.success) {
+        setMembers(membersData.members);
+      }
+
+    } catch (error) {
+      console.error(error);
+      alert('Something went wrong');
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -21,7 +97,11 @@ export default function AdminMembers() {
           <p className="text-gray-400">View, manage roles, and activate/deactivate members.</p>
         </div>
         
-        <button className="px-4 py-2 bg-primary text-white font-medium rounded-lg hover:bg-blue-600 transition-colors">
+
+        <button
+          onClick={() => setShowModal(true)}
+          className="px-4 py-2 bg-primary text-white font-medium rounded-lg hover:bg-blue-600 transition-colors"
+          >
           Add New Member
         </button>
       </div>
@@ -57,9 +137,19 @@ export default function AdminMembers() {
                 <th className="p-4 text-sm font-semibold text-gray-400 text-right">Actions</th>
               </tr>
             </thead>
+
             <tbody>
+
+              {loading && (
+              <tr>
+                <td colSpan={5} className="p-6 text-center text-gray-400">
+                  Loading Members...
+                </td>
+              </tr>
+              )}
+
               {members.map((member) => (
-                <tr key={member.id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
+                <tr key={member._id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
                   <td className="p-4">
                     <div className="flex flex-col">
                       <span className="font-semibold text-white">{member.name}</span>
@@ -68,23 +158,23 @@ export default function AdminMembers() {
                   </td>
                   <td className="p-4">
                     <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-white/10 text-gray-300 border border-white/10">
-                      {member.role}
+                      {member.designation || member.role}
                     </span>
                   </td>
                   <td className="p-4">
                     <div className="flex items-center gap-2">
-                      {member.status === 'Active' && <CheckCircle className="w-4 h-4 text-green-400" />}
-                      {member.status === 'Inactive' && <XCircle className="w-4 h-4 text-red-400" />}
-                      {member.status === 'Pending' && <div className="w-2 h-2 rounded-full bg-orange-400" />}
+                      {member.status === 'active' && <CheckCircle className="w-4 h-4 text-green-400" />}
+                      {member.status === 'inactive' && <XCircle className="w-4 h-4 text-red-400" />}
+                      {member.status === 'pending' && <div className="w-2 h-2 rounded-full bg-orange-400" />}
                       <span className={`text-sm ${
-                        member.status === 'Active' ? 'text-green-400' :
-                        member.status === 'Inactive' ? 'text-red-400' : 'text-orange-400'
+                        member.status === 'active' ? 'text-green-400' :
+                        member.status === 'inactive' ? 'text-red-400' : 'text-orange-400'
                       }`}>
                         {member.status}
                       </span>
                     </div>
                   </td>
-                  <td className="p-4 text-sm text-gray-400">{member.joinDate}</td>
+                  <td className="p-4 text-sm text-gray-400">{new Date(member.createdAt).toLocaleDateString()}</td>
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <button className="p-2 text-gray-400 hover:text-primary transition-colors bg-white/5 rounded-lg"><Edit2 className="w-4 h-4" /></button>
@@ -99,13 +189,104 @@ export default function AdminMembers() {
         
         {/* Pagination placeholder */}
         <div className="p-4 border-t border-white/5 flex items-center justify-between text-sm text-gray-400">
-          <span>Showing 1 to 4 of 1,248 entries</span>
+          <span> Showing {members.length} member(s)</span>
           <div className="flex gap-2">
             <button className="px-3 py-1 bg-white/5 rounded hover:bg-white/10 transition-colors disabled:opacity-50" disabled>Prev</button>
             <button className="px-3 py-1 bg-white/5 rounded hover:bg-white/10 transition-colors">Next</button>
           </div>
         </div>
       </div>
+
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+          <div className="w-full max-w-md glass rounded-2xl p-6 border border-white/10">
+      
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-white">
+                Add New Member
+              </h2>
+
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+
+              <input
+                type="text"
+                placeholder="Full Name"
+                value={formData.name}
+                onChange={(e) =>
+                  setFormData({ ...formData, name: e.target.value })
+                }
+                className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-white"
+              />
+
+              <input
+                type="email"
+                placeholder="Email"
+                value={formData.email}
+                onChange={(e) =>
+                  setFormData({ ...formData, email: e.target.value })
+                }
+                className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-white"
+              />
+
+              <input
+                type="password"
+                placeholder="Password"
+                value={formData.password}
+                onChange={(e) =>
+                  setFormData({ ...formData, password: e.target.value })
+                }
+                className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-white"
+              />
+
+              <select
+                value={formData.role}
+                onChange={(e) =>
+                  setFormData({ ...formData, role: e.target.value })
+                }
+                className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-white"
+              >
+                <option value="PI">PI</option>
+                <option value="President">President</option>
+                <option value="OfficeBearer">OfficeBearer</option>
+                <option value="TeamLeader">TeamLeader</option>
+                <option value="TeamMember">TeamMember</option>
+                <option value="Alumni">Alumni</option>
+              </select>
+
+              <input
+                type="text"
+                placeholder="Team"
+                value={formData.team}
+                onChange={(e) =>
+                  setFormData({ ...formData, team: e.target.value })
+                }
+                className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-white"
+              />
+
+              <button
+                onClick={handleCreateMember}
+                className="w-full py-3 bg-primary text-white rounded-lg font-semibold"
+              >
+                Create Member
+              </button>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+
     </div>
+
+  
+
   );
 }

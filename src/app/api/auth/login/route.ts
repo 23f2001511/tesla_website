@@ -27,12 +27,22 @@ export async function POST(req: Request) {
     }
 
     const token = jwt.sign(
-      { userId: user._id, role: user.role },
+      {
+        userId: user._id,
+        role: user.role,
+        designation: user.designation,
+        team: user.team
+      },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
 
-    const response = NextResponse.json({ message: 'Logged in successfully', role: user.role });
+    const response = NextResponse.json({
+      message: 'Logged in successfully',
+      role: user.role,
+      designation: user.designation,
+      team: user.team
+    });
     
     // Set HTTP-only cookie
     response.cookies.set('token', token, {
