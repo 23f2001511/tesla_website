@@ -9,7 +9,6 @@ import {
   Calendar, 
   BookOpen, 
   Trophy, 
-  Settings,
   LogOut,
   Menu,
   X
@@ -116,10 +115,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </nav>
 
           <div className="mt-8 pt-6 border-t border-white/10 space-y-1">
-            <Link href="/dashboard/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-white/5 hover:text-white transition-colors">
-              <Settings className="w-5 h-5" />
-              Settings
-            </Link>
             <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:bg-red-400/10 transition-colors">
               <LogOut className="w-5 h-5" />
               Logout
