@@ -34,7 +34,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { name: 'Achievements', href: '/admin/achievements', icon: Trophy },
     { name: 'Alumni', href: '/admin/alumni', icon: GraduationCap },
     { name: 'Gallery', href: '/admin/gallery', icon: ImageIcon },
-    { name: 'Announcements', href: '/admin/announcements', icon: Bell },
+   
   ];
 
   const handleLogout = async () => {
@@ -105,7 +105,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             <div className="space-y-1">
               <Link
-                href="/admin/settings"
+                href="../dashboard/settings"
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-white/5 hover:text-white transition-colors"
               >
                 <Settings className="w-5 h-5" />

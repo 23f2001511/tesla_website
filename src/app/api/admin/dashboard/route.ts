@@ -3,9 +3,15 @@ import connectDB from '@/lib/db';
 import { User } from '@/models/User';
 import { Team } from '@/models/Team';
 import { Event } from '@/models/Event';
+import { requireRole } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
+    const { response: authError } = await requireRole(['Admin', 'President']);
+    if (authError) return authError;
+
     await connectDB();
 
     const totalMembers = await User.countDocuments();

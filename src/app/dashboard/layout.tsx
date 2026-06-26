@@ -1,41 +1,30 @@
 'use client';
 
-import { useState , useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { usePathname , useRouter } from 'next/navigation';
-import { 
-  User, 
-  FileText, 
-  Calendar, 
-  BookOpen, 
-  Trophy, 
+
+import {
+  LayoutDashboard,
+  FileText,
+  Calendar,
+  BookOpen,
+  Trophy,
+  Users,
+  Image as ImageIcon,
   Settings,
   LogOut,
-  Menu,
-  X
 } from 'lucide-react';
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
-
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
-
   const router = useRouter();
 
-  const handleLogout = async () => {
-    try {
-      await fetch('/api/auth/logout', {
-        method: 'POST'
-      });
-
-      router.push('/login');
-    } catch (error) {
-      console.error(error);
-      alert('Logout failed');
-    }
-  };
+  const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -54,116 +43,157 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     fetchUser();
   }, []);
 
-  const navItems = [
-    { name: 'Profile', href: '/dashboard/profile', icon: User },
-    { name: 'My Blogs', href: '/dashboard/blogs', icon: FileText },
-    { name: 'My Events', href: '/dashboard/events', icon: Calendar },
-    { name: 'My Resources', href: '/dashboard/resources', icon: BookOpen },
-    { name: 'My Achievements', href: '/dashboard/achievements', icon: Trophy },
+  const userRole = user?.role;
 
-    ...(user?.role === 'TeamLeader'
-      ? [
-          {
-            name: 'Team Dashboard',
-            href: '/dashboard/team',
-            icon: User
-          }
-        ]
-      : []),
+  type NavItem = {
+    name: string;
+    href: string;
+    icon: typeof LayoutDashboard;
+  };
 
-    ...(user?.role === 'PI' ||
-    user?.role === 'President' ||
-    user?.role === 'OfficeBearer'
-      ? [
-          {
-            name: 'Leadership',
-            href: '/dashboard/leadership',
-            icon: Trophy
-          }
-        ]
-      : []),
+  let navItems: NavItem[] = [];
 
-    ...(user?.role === 'Alumni'
-      ? [
-          {
-            name: 'Alumni Hub',
-            href: '/dashboard/alumni',
-            icon: User
-          }
-        ]
-      : [])
-  ];
+  if (userRole === 'TeamLeader') {
+    navItems = [
+      { name: 'Dashboard', href: '/dashboard/members', icon: LayoutDashboard },
+      { name: 'Team', href: '/dashboard/members/team', icon: Users },
+      { name: 'My Events', href: '/dashboard/members/events', icon: Calendar },
+      { name: 'My Blogs', href: '/dashboard/members/blogs', icon: FileText },
+      { name: 'Resources', href: '/dashboard/resources', icon: BookOpen },
+      { name: 'Achievements', href: '/dashboard/achievements', icon: Trophy },
+      { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon }
+    ];
+
+  } else if (userRole === 'TeamMember') {
+    navItems = [
+      { name: 'Dashboard', href: '/dashboard/members', icon: LayoutDashboard },
+      { name: 'My Events', href: '/dashboard/members/events', icon: Calendar },
+      { name: 'My Blogs', href: '/dashboard/members/blogs', icon: FileText },
+      { name: 'Resources', href: '/dashboard/resources', icon: BookOpen },
+      { name: 'Achievements', href: '/dashboard/achievements', icon: Trophy },
+      { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon }
+    ];
+
+  } else if (userRole === 'OfficeBearer') {
+    navItems = [
+      { name: 'Dashboard', href: '/dashboard/members', icon: LayoutDashboard },
+      { name: 'Blogs and Events', href: '/dashboard/members/events', icon: FileText },
+      { name: 'Resources', href: '/dashboard/resources', icon: BookOpen },
+      { name: 'Achievements', href: '/dashboard/achievements', icon: Trophy },
+      { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon }
+    ];
+
+  } else if (userRole === 'PI') {
+    navItems = [
+      { name: 'Dashboard', href: '/dashboard/members', icon: LayoutDashboard },
+      { name: 'manage', href: '/dashboard/manage', icon: FileText }
+    ];
+
+  } else if (userRole === 'Alumni') {
+    navItems = [
+      { name: 'Dashboard', href: '/dashboard/members', icon: LayoutDashboard },
+      { name: 'My Events', href: '/dashboard/members/events', icon: Calendar },
+      { name: 'My Blogs', href: '/dashboard/members/blogs', icon: FileText },
+      { name: 'Resources', href: '/dashboard/resources', icon: BookOpen },
+      { name: 'Achievements', href: '/dashboard/achievements', icon: Trophy },
+      { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon }
+    ];
+
+  }else{
+     navItems = [
+      { name: 'Dashboard', href: '/dashboard/members', icon: LayoutDashboard },
+      { name: 'My Events', href: '/dashboard/members/events', icon: Calendar },
+      { name: 'My Blogs', href: '/dashboard/members/blogs', icon: FileText },
+      { name: 'Resources', href: '/dashboard/resources', icon: BookOpen },
+      { name: 'Achievements', href: '/dashboard/achievements', icon: Trophy },
+      { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon }
+    ];
+  }
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.push('/login');
+  };
 
   return (
-    <div className="pt-20 min-h-screen flex bg-background">
-      {/* Mobile sidebar toggle */}
-      <div className="lg:hidden fixed top-24 left-4 z-40">
-        <button 
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2 bg-primary text-white rounded-lg shadow-lg"
-        >
-          {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
-      </div>
-
-      {/* Sidebar */}
-      <aside className={`
-        fixed lg:sticky top-20 left-0 z-30 h-[calc(100vh-5rem)] w-64 glass border-r border-white/5 transition-transform duration-300
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        <div className="flex flex-col h-full overflow-y-auto py-6 px-4 hide-scrollbar">
-          <div className="mb-8 px-2 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full border-2 border-primary/30 overflow-hidden">
-              <img src="https://i.pravatar.cc/150?u=current_user" alt="User" className="w-full h-full object-cover" />
-            </div>
-            <div>
-               <h2 className="text-sm font-bold text-white">
-                {user?.name || 'Loading...'}
-              </h2>
-
-              <p className="text-xs text-gray-400">
-                {user?.role || ''}
-              </p>
-            </div>
+    <div className="h-screen w-full bg-[#0d1117] flex overflow-hidden selection:bg-primary/30 selection:text-white">
+      
+      {/* ── DESIGNER PREMIUM SIDEBAR ── */}
+      <aside className="w-56 border-r border-white/[0.06] bg-gradient-to-b from-[#0f141c] via-[#0d1117] to-[#0b0e14] p-4 flex flex-col h-full flex-shrink-0 sticky top-0 select-none shadow-2xl shadow-black/40">
+        
+        {/* Brand/Logo Section with Glowing Border Sub-pipe */}
+        <div className="mb-6 pl-2.5 pt-2 relative group">
+          <div className="space-y-0.5">
+            <h1 className="text-xl font-black text-white tracking-wider flex items-center gap-1.5 font-sans">
+              TESLA <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+            </h1>
+            <p className="text-[10px] uppercase font-bold tracking-widest text-primary/80">
+              Technical Club
+            </p>
           </div>
+          {/* Suttle accent line under logo */}
+          <div className="w-12 h-[2px] bg-gradient-to-r from-primary to-transparent mt-3.5 opacity-60 group-hover:w-20 transition-all duration-300" />
+        </div>
 
-          <nav className="flex-1 space-y-1">
-            {navItems.map((item) => {
-              const isActive = pathname === item.href;
-              return (
-                <Link
-                  key={item.name}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    isActive 
-                      ? 'bg-primary/20 text-primary border border-primary/30' 
-                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
-                  }`}
-                >
-                  <item.icon className={`w-5 h-5 ${isActive ? 'text-primary' : 'text-gray-400'}`} />
-                  {item.name}
-                </Link>
-              );
-            })}
-          </nav>
+        {/* Navigation Items Link Pipeline */}
+        <nav className="flex-1 space-y-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/5">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href;
 
-          <div className="mt-8 pt-6 border-t border-white/10 space-y-1">
-            <Link href="/dashboard/settings" className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-white/5 hover:text-white transition-colors">
-              <Settings className="w-5 h-5" />
-              Settings
-            </Link>
-            <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:bg-red-400/10 transition-colors">
-              <LogOut className="w-5 h-5" />
-              Logout
-            </button>
-          </div>
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all duration-200 relative group ${
+                  isActive
+                    ? 'bg-gradient-to-r from-primary/20 to-primary/5 text-white border border-primary/20 shadow-lg shadow-primary/5'
+                    : 'text-gray-400 hover:bg-white/[0.03] hover:text-white border border-transparent'
+                }`}
+              >
+                {/* Active Indicator Strip Indicator */}
+                {isActive && (
+                  <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-md bg-primary" />
+                )}
+                
+                <item.icon className={`w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
+                  isActive ? 'text-primary' : 'text-gray-400 group-hover:text-white'
+                }`} />
+                
+                <span>{item.name}</span>
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Bottom Actions Section with Smooth Gradient Borders */}
+        <div className="border-t border-white/[0.06] pt-3.5 space-y-1.5 mt-auto">
+          <Link
+            href="/dashboard/settings"
+            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold tracking-wide border border-transparent transition-all duration-200 group ${
+              pathname === '/dashboard/settings'
+                ? 'bg-gradient-to-r from-primary/20 to-primary/5 text-white border-primary/20'
+                : 'text-gray-400 hover:bg-white/[0.03] hover:text-white'
+            }`}
+          >
+            <Settings className="w-4 h-4 shrink-0 text-gray-400 group-hover:text-white transition-colors" />
+            <span>Settings</span>
+          </Link>
+
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold tracking-wide text-red-400/90 hover:bg-red-500/10 hover:text-red-400 border border-transparent hover:border-red-500/10 transition-all duration-200 group"
+          >
+            <LogOut className="w-4 h-4 shrink-0 text-red-400/80 group-hover:translate-x-0.5 transition-transform" />
+            <span>Logout</span>
+          </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="flex-1 p-6 lg:p-10 w-full overflow-x-hidden">
+      {/* ── MAIN AREA ROUTER CONTAINER ── */}
+      <main className="flex-1 h-full p-8 overflow-y-auto">
         {children}
       </main>
+
     </div>
   );
 }

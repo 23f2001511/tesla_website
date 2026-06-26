@@ -4,113 +4,90 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Mail, Lock, LogIn } from 'lucide-react';
+import { Mail, Lock, LogIn, AlertCircle } from 'lucide-react';
 import { Navbar } from "@/components/layout/Navbar";
 
+// Single source of truth for "where does this role land after login" —
+// keep this in sync with src/lib/permissions.ts if those routes change.
+const ROLE_LANDING: Record<string, string> = {
+  Admin:        '/admin',
+  PI:           '/dashboard',
+  President:    '/admin',           // President has admin panel access too
+  OfficeBearer: '/dashboard/executor',
+  TeamLeader:   '/dashboard/members',
+  TeamMember:   '/dashboard/members',
+  Alumni:       '/dashboard',
+};
+
 export default function LoginPage() {
-
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const router = useRouter();
 
   const handleLogin = async () => {
-  try {
-    setLoading(true);
-
-    const res = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        email,
-        password
-      })
-    });
-
-    const data = await res.json();
-    console.log('LOGIN RESPONSE:', data);
-    alert(`Role: ${data.role}`);
-
-    if (!res.ok) {
-      alert(data.error || 'Login failed');
+    if (!email || !password) {
+      setError('Please enter both email and password.');
       return;
     }
 
-    
+    try {
+      setLoading(true);
+      setError('');
 
-    //-------
-    console.log('ROLE:', data.role);
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-    switch (data.role) {
-      case 'Admin':
-        router.push('/admin');
-        break;
+      const data = await res.json();
 
-      case 'PI':
-        router.push('/dashboard/leadership');
-        break;
+      if (!res.ok) {
+        setError(data.error || 'Login failed. Check your credentials and try again.');
+        return;
+      }
 
-      case 'President':
-        router.push('/dashboard/leadership');
-        break;
-
-      case 'OfficeBearer':
-        router.push('/dashboard/leadership');
-        break;
-
-      case 'TeamLeader':
-        router.push('/dashboard/team');
-        break;
-
-      case 'TeamMember':
-        router.push('/dashboard/profile');
-        break;
-
-      case 'Alumni':
-        router.push('/dashboard/alumni');
-        break;
-
-      default:
-        router.push('/');
+      const destination = ROLE_LANDING[data.role] || '/';
+      router.push(destination);
+    } catch (error) {
+      console.error(error);
+      setError('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-
-
-  } catch (error) {
-    console.error(error);
-    alert('Something went wrong');
-  } finally {
-    setLoading(false);
-  }
   };
 
   return (
     <div className="min-h-screen pt-20 flex items-center justify-center p-4">
-
-      < Navbar />
-      <motion.div 
+      <Navbar />
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md glass p-8 rounded-3xl border-primary/20 relative overflow-hidden"
       >
         <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent z-0 pointer-events-none" />
-        
+
         <div className="relative z-10">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-white mb-2">Welcome Back</h1>
             <p className="text-gray-400 text-sm">Sign in to your TESLA account</p>
           </div>
 
-          <form className="space-y-6">
+          {error && (
+            <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-xl px-3.5 py-2.5 text-sm text-red-400 mb-5">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+            </div>
+          )}
+
+          <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-2">Email Address</label>
               <div className="relative">
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-primary/50 transition-colors"
@@ -126,8 +103,8 @@ export default function LoginPage() {
                 <a href="#" className="text-xs text-primary hover:underline">Forgot password?</a>
               </div>
               <div className="relative">
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white focus:outline-none focus:border-primary/50 transition-colors"
@@ -137,8 +114,11 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <button type="button" onClick={handleLogin} className="w-full py-3 bg-primary hover:bg-blue-600 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(59,130,246,0.3)]">
-             {loading ? 'Signing In...' : 'Sign In'}  <LogIn className="w-4 h-4" />
+            <button
+              type="button" onClick={handleLogin} disabled={loading}
+              className="w-full py-3 bg-primary hover:bg-blue-600 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-60"
+            >
+              {loading ? 'Signing In...' : 'Sign In'} <LogIn className="w-4 h-4" />
             </button>
           </form>
 

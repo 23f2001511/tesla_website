@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
+import { NextResponse } from 'next/server';
 import connectDB  from '@/lib/db';
 import { User } from '@/models/User';
 import { Blog } from '@/models/Blog';
 import { Event } from '@/models/Event';
 import { Visit } from '@/models/Visit';
+import { requireRole } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 function getDateNDaysAgo(n: number) {
   const d = new Date();
@@ -21,26 +23,12 @@ function formatMonthLabel(date: Date) {
   return date.toLocaleDateString('en-US', { month: 'short' });
 }
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
+    const { response: authError } = await requireRole(['Admin']);
+    if (authError) return authError;
+
     await connectDB();
-
-    // ---- Auth check ----
-    const token = req.cookies.get('token')?.value;
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    let decoded: any;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET as string);
-    } catch {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
-    }
-
-    if (decoded?.role !== 'Admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
 
     // ---- Basic counts ----
     const [totalMembers, totalEvents, totalBlogs, pendingBlogs, alumniCount] = await Promise.all([

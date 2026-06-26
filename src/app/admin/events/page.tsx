@@ -1,303 +1,537 @@
 'use client';
 
-import { motion, AnimatePresence, cubicBezier, useReducedMotion } from 'framer-motion';
 import { useEffect, useState, useCallback, useRef, useMemo, memo } from 'react';
-import Link from 'next/link';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
-  Calendar, Plus, RefreshCw, Search, Filter, Users, MapPin,
-  Clock, ChevronDown, Eye, Pencil, Trash2, MoreHorizontal,
-  TrendingUp, Zap, ArrowRight, CheckCircle2, XCircle,
-  AlertCircle, Radio, BarChart3,
+  Calendar, Plus, RefreshCw, Search, MapPin, Clock,
+  ChevronDown, Eye, Trash2, CheckCircle2,
+  AlertCircle, BarChart3, Star, X, Check, Ban,
+  Bell, User, FileText, Loader2, CalendarPlus, Inbox, Tag
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, AreaChart, Area,
 } from 'recharts';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-type EventStatus = 'Upcoming' | 'Ongoing' | 'Completed' | 'Cancelled';
-type EventCategory = 'Workshop' | 'Hackathon' | 'Seminar' | 'Competition' | 'Social';
-
+// ─── Types ─────────────────────────────────────────────────────────────────────
 interface ClubEvent {
-  id: number;
+  id: string;
   title: string;
-  date: string;
-  time: string;
-  location: string;
-  category: EventCategory;
-  status: EventStatus;
-  attendees: number;
-  capacity: number;
-  organizer: string;
   description: string;
+  date: string;
+  venue: string;
+  category: string;
+  speaker: string;
+  seatLimit: number;
+  isFeatured: boolean;
+
+  approvalStatus: 'approved' | 'pending' | 'rejected';
+  requestedBy: string | null;
+  requestNote: string;
+  isUpcoming: boolean;
 }
 
 interface EventsData {
   events: ClubEvent[];
-  stats: {
-    total: number;
-    upcoming: number;
-    ongoing: number;
-    completed: number;
-    cancelled: number;
-    totalAttendees: number;
-  };
-  monthlyData: { name: string; events: number; attendees: number }[];
-  categoryData: { name: string; count: number }[];
+  pendingRequests: ClubEvent[];
+  rejectedEvents: ClubEvent[];
+  stats: { total: number; upcoming: number; completed: number; featured: number; pendingCount: number };
+  monthlyData: { name: string; events: number }[];
 }
 
-// ─── Mock fetch (swap with real API) ─────────────────────────────────────────
-async function fetchEventsData(): Promise<EventsData> {
-  // Replace with: const res = await fetch('/api/admin/events'); return res.json();
-  await new Promise(r => setTimeout(r, 700));
-  const events: ClubEvent[] = [
-    { id: 1, title: 'AI & ML Workshop', date: '2025-06-20', time: '10:00 AM', location: 'Lab 3, Block B', category: 'Workshop', status: 'Upcoming', attendees: 38, capacity: 50, organizer: 'Ram', description: 'Hands-on neural networks with PyTorch.' },
-    { id: 2, title: 'Tesla Hackathon 2025', date: '2025-06-25', time: '9:00 AM', location: 'Auditorium', category: 'Hackathon', status: 'Upcoming', attendees: 94, capacity: 100, organizer: 'Teena', description: '24-hour hackathon, top 3 teams win prizes.' },
-    { id: 3, title: 'Open Source Drive', date: '2025-06-15', time: '2:00 PM', location: 'Online – Discord', category: 'Workshop', status: 'Ongoing', attendees: 22, capacity: 40, organizer: 'Meena', description: 'Live contributions to GitHub open-source projects.' },
-    { id: 4, title: 'Cloud Computing Seminar', date: '2025-06-10', time: '11:00 AM', location: 'Seminar Hall A', category: 'Seminar', status: 'Completed', attendees: 60, capacity: 60, organizer: 'Ramu', description: 'AWS, GCP, and Azure for students.' },
-    { id: 5, title: 'UI/UX Design Challenge', date: '2025-06-28', time: '1:00 PM', location: 'Design Studio', category: 'Competition', status: 'Upcoming', attendees: 17, capacity: 30, organizer: 'Somu', description: 'Redesign the college website in Figma.' },
-    { id: 6, title: 'End-of-Semester Social', date: '2025-06-05', time: '5:00 PM', location: 'Cafeteria', category: 'Social', status: 'Completed', attendees: 85, capacity: 100, organizer: 'Ram', description: 'Certificates and informal networking.' },
-    { id: 7, title: 'Cybersecurity CTF', date: '2025-07-05', time: '10:00 AM', location: 'Lab 1, Block A', category: 'Competition', status: 'Upcoming', attendees: 12, capacity: 25, organizer: 'Meena', description: 'Capture-the-flag from beginner to expert.' },
-    { id: 8, title: 'Robotics Demo Day', date: '2025-05-30', time: '3:00 PM', location: 'Mechanical Block', category: 'Workshop', status: 'Cancelled', attendees: 0, capacity: 45, organizer: 'Ramu', description: 'Showcase of semester robot builds.' },
-  ];
-  return {
-    events,
-    stats: { total: 8, upcoming: 4, ongoing: 1, completed: 2, cancelled: 1, totalAttendees: 328 },
-    monthlyData: [
-      { name: 'Jan', events: 1, attendees: 45 }, { name: 'Feb', events: 2, attendees: 90 },
-      { name: 'Mar', events: 1, attendees: 60 }, { name: 'Apr', events: 3, attendees: 140 },
-      { name: 'May', events: 2, attendees: 85 }, { name: 'Jun', events: 4, attendees: 175 },
-    ],
-    categoryData: [
-      { name: 'Workshop', count: 3 }, { name: 'Hackathon', count: 1 },
-      { name: 'Seminar', count: 1 }, { name: 'Competition', count: 2 }, { name: 'Social', count: 1 },
-    ],
-  };
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
-function pct(a: number, b: number) { return b === 0 ? 0 : Math.round((a / b) * 100); }
+function fmtTime(d: string) {
+  return new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
 
-const STATUS_META: Record<EventStatus, { color: string; bg: string; border: string; Icon: any; label: string }> = {
-  Upcoming:  { color: '#818cf8', bg: 'rgba(99,102,241,0.12)',  border: 'rgba(99,102,241,0.3)',  Icon: Clock,         label: 'Upcoming'  },
-  Ongoing:   { color: '#34d399', bg: 'rgba(52,211,153,0.12)',  border: 'rgba(52,211,153,0.3)',  Icon: Radio,         label: 'Ongoing'   },
-  Completed: { color: '#a78bfa', bg: 'rgba(167,139,250,0.12)', border: 'rgba(167,139,250,0.3)', Icon: CheckCircle2,  label: 'Completed' },
-  Cancelled: { color: '#f87171', bg: 'rgba(248,113,113,0.12)', border: 'rgba(248,113,113,0.3)', Icon: XCircle,       label: 'Cancelled' },
-};
+// ─── API ───────────────────────────────────────────────────────────────────────
+async function fetchEventsData(): Promise<EventsData> {
+  const res = await fetch('/api/admin/events', { cache: 'no-store' });
+  if (!res.ok) throw new Error((await res.json()).error || 'Fetch failed');
+  return res.json();
+}
 
-const CATEGORY_COLORS: Record<EventCategory, string> = {
-  Workshop: '#6366f1', Hackathon: '#f59e0b', Seminar: '#a78bfa',
-  Competition: '#06b6d4', Social: '#fb7185',
-};
-
-const EVENT_GRADIENTS = [
-  ['#6366f1', '#4f46e5'], ['#8b5cf6', '#7c3aed'],
-  ['#3b82f6', '#2563eb'], ['#06b6d4', '#0891b2'],
-];
-
-// ─── Animated Number (same as overview) ──────────────────────────────────────
-const AnimatedNumber = memo(function AnimatedNumber({ value }: { value: number }) {
+// ─── Animated Counter ──────────────────────────────────────────────────────────
+const AnimatedNumber = memo(({ value }: { value: number }) => {
   const [display, setDisplay] = useState(0);
-  const rafRef = useRef<number | undefined>(undefined);
-  const prevValue = useRef(0);
+  const raf = useRef<number | null>(null);
+  const prev = useRef(0);
   useEffect(() => {
     const start = performance.now();
-    const from = prevValue.current;
-    const duration = 700;
+    const from = prev.current;
     const tick = (now: number) => {
-      const t = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setDisplay(Math.round(from + (value - from) * eased));
-      if (t < 1) rafRef.current = requestAnimationFrame(tick);
-      else prevValue.current = value;
+      const t = Math.min((now - start) / 700, 1);
+      const e = 1 - Math.pow(1 - t, 3);
+      setDisplay(Math.round(from + (value - from) * e));
+      if (t < 1) raf.current = requestAnimationFrame(tick);
+      else prev.current = value;
     };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    raf.current = requestAnimationFrame(tick);
+    return () => { if (raf.current !== null) cancelAnimationFrame(raf.current); };
   }, [value]);
   return <>{display.toLocaleString()}</>;
 });
+AnimatedNumber.displayName = 'AnimatedNumber';
 
-// ─── Skeleton ─────────────────────────────────────────────────────────────────
-function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`skeleton ${className}`} />;
-}
-function EventsSkeleton() {
-  return (
-    <div className="space-y-5">
-      <Skeleton className="h-32 rounded-2xl" />
-      <div className="stat-grid">
-        {[...Array(5)].map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
-      </div>
-      <div className="grid-2-1">
-        <Skeleton className="h-60 rounded-2xl" />
-        <Skeleton className="h-60 rounded-2xl" />
-      </div>
-      <Skeleton className="h-80 rounded-2xl" />
-    </div>
-  );
-}
-
-// ─── Chart Tooltip (same as overview) ─────────────────────────────────────────
-const ChartTooltip = memo(function ChartTooltip({ active, payload, label }: any) {
+const ChartTip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="chart-tooltip">
-      <p className="tooltip-label">{label}</p>
+    <div className="bg-gray-900 border border-white/10 rounded-xl px-3 py-2 text-xs">
+      <p className="text-gray-200 font-semibold mb-1">{label}</p>
       {payload.map((p: any, i: number) => (
-        <p key={i} style={{ color: p.color }} className="tooltip-value">
-          {p.name}: <strong>{p.value.toLocaleString()}</strong>
-        </p>
+        <p key={i} style={{ color: p.color || '#818cf8' }}>{p.name}: <strong>{p.value}</strong></p>
       ))}
     </div>
   );
-});
-
-// ─── itemVariants (same as overview) ─────────────────────────────────────────
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: cubicBezier(0.22, 1, 0.36, 1) } },
 };
 
-// ─── Stat Card (matches overview StatCard exactly) ────────────────────────────
-const StatCard = memo(function StatCard({ s }: { s: any }) {
+const Skeleton = ({ className = '' }: { className?: string }) => (
+  <div className={`animate-pulse bg-white/5 rounded-2xl ${className}`} />
+);
+
+const Backdrop = ({ onClick }: { onClick: () => void }) => (
+  <motion.div
+    initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
+    onClick={onClick}
+  />
+);
+
+// ─── Add Event Modal Popup ─────────────────────────────────────────────────────
+function AddEventModal({ onClose, onCreated, existingCategories }: { onClose: () => void; onCreated: () => void; existingCategories: string[] }) {
+  const [form, setForm] = useState({
+    title: '', description: '', date: '', venue: '',
+    category: existingCategories[0] || 'Technical Workshop', speaker: '', seatLimit: '',
+    isFeatured: false, newCategoryInput: ''
+  });
+  const [useCustomCategory, setUseCustomCategory] = useState(existingCategories.length === 0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
+
+  const submit = async () => {
+    const finalCategory = useCustomCategory ? form.newCategoryInput.trim() : form.category;
+    
+    if (!form.title || !form.description || !form.date || !form.venue || !finalCategory) {
+      setError('Please fill all required blocks.'); return;
+    }
+    setLoading(true); setError('');
+    try {
+      const res = await fetch('/api/admin/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          ...form, 
+          category: finalCategory,
+          seatLimit: Number(form.seatLimit) || 0 
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Creation engine anomaly occurred');
+      onCreated();
+      onClose();
+    } catch (e: any) {
+      setError(e.message || 'Failed to create event');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <motion.div
-      variants={itemVariants}
-      whileHover={{ y: -4 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ type: 'spring', stiffness: 320, damping: 22 }}
-    >
-      <div className="stat-card" style={{ '--accent': s.accent } as any}>
-        <div className="stat-top">
-          <div className="stat-icon-wrap">
-            <s.Icon className="stat-icon" />
+    <>
+      <Backdrop onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          className="w-full max-w-xl bg-gray-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+        >
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+                <CalendarPlus className="w-4 h-4 text-indigo-400" />
+              </div>
+              <h2 className="text-sm font-bold text-white">Create New Event</h2>
+            </div>
+            <button onClick={onClose} className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center">
+              <X className="w-3.5 h-3.5 text-gray-400" />
+            </button>
           </div>
-        </div>
-        <p className="stat-value"><AnimatedNumber value={s.value} /></p>
-        <div className="stat-footer">
-          <span className="stat-title">{s.title}</span>
-        </div>
-        <div className="stat-glow" />
-      </div>
-    </motion.div>
-  );
-});
 
-// ─── Attendance Bar ───────────────────────────────────────────────────────────
-function AttendeeBar({ attendees, capacity }: { attendees: number; capacity: number }) {
-  const [width, setWidth] = useState('0%');
-  const ref = useRef<HTMLDivElement>(null);
-  const p = pct(attendees, capacity);
-  useEffect(() => {
-    const obs = new IntersectionObserver(([e]) => {
-      if (e.isIntersecting) { setTimeout(() => setWidth(`${p}%`), 80); obs.disconnect(); }
-    });
-    if (ref.current) obs.observe(ref.current);
-    return () => obs.disconnect();
-  }, [p]);
-  const barColor = p >= 90 ? '#f87171' : p >= 60 ? '#f59e0b' : '#6366f1';
-  return (
-    <div ref={ref}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#6b7280', marginBottom: 4 }}>
-        <span>{attendees} / {capacity}</span>
-        <span style={{ color: p >= 90 ? '#f87171' : '#9ca3af', fontWeight: 600 }}>{p}%</span>
+          <div className="px-6 py-5 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+            {error && (
+              <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2.5 text-xs text-red-400">
+                <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" /> {error}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-1.5 font-medium">Event Title *</label>
+              <input
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-sm text-gray-100 outline-none focus:border-indigo-500"
+                placeholder="e.g. GitHappens Hackathon"
+                value={form.title} onChange={e => set('title', e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-1.5 font-medium">Description *</label>
+              <textarea
+                rows={3}
+                className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-sm text-gray-100 outline-none focus:border-indigo-500 resize-none"
+                placeholder="What's this event about?"
+                value={form.description} onChange={e => set('description', e.target.value)}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5 font-medium">Date & Time *</label>
+                <input
+                  type="datetime-local"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-sm text-gray-100 outline-none [color-scheme:dark]"
+                  value={form.date} onChange={e => set('date', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5 font-medium">Venue *</label>
+                <input
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-sm text-gray-100 outline-none"
+                  placeholder="e.g. Mechanical Seminar Hall, NITP"
+                  value={form.venue} onChange={e => set('venue', e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs text-gray-400 font-medium">Category Domain *</label>
+                {existingCategories.length > 0 && (
+                  <button 
+                    type="button" 
+                    onClick={() => setUseCustomCategory(!useCustomCategory)} 
+                    className="text-[11px] text-indigo-400 hover:underline"
+                  >
+                    {useCustomCategory ? 'Choose Existing' : 'Create Custom Type'}
+                  </button>
+                )}
+              </div>
+              
+              {useCustomCategory ? (
+                <input
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-sm text-gray-100 outline-none focus:border-indigo-500"
+                  placeholder="e.g. Hackathon Drive, Core Workshop"
+                  value={form.newCategoryInput} onChange={e => set('newCategoryInput', e.target.value)}
+                />
+              ) : (
+                <div className="relative">
+                  <select
+                    className="w-full appearance-none bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-sm text-gray-100 outline-none pr-8"
+                    value={form.category} onChange={e => set('category', e.target.value)}
+                  >
+                    {existingCategories.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5 font-medium">Speaker / Mentor</label>
+                <input
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-sm text-gray-100 outline-none"
+                  placeholder="e.g. Senior Alumnus"
+                  value={form.speaker} onChange={e => set('speaker', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1.5 font-medium">Seat Limit</label>
+                <input
+                  type="number" min="0"
+                  className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-sm text-gray-100 outline-none"
+                  placeholder="0 = unlimited"
+                  value={form.seatLimit} onChange={e => set('seatLimit', e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button" onClick={() => set('isFeatured', !form.isFeatured)}
+                className="flex items-center gap-2.5 cursor-pointer select-none"
+              >
+                <div className={`w-9 h-5 rounded-full transition-colors relative ${form.isFeatured ? 'bg-indigo-500' : 'bg-white/10'}`}>
+                  <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${form.isFeatured ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                </div>
+                <span className="text-xs text-gray-400">Mark as Featured Event</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/[0.06]">
+            <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm text-gray-400 hover:text-gray-200 hover:bg-white/[0.05]">Cancel</button>
+            <button
+              onClick={submit} disabled={loading}
+              className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-50"
+            >
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+              {loading ? 'Creating…' : 'Create Event'}
+            </button>
+          </div>
+        </motion.div>
       </div>
-      <div style={{ height: 5, borderRadius: 99, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
-        <div style={{ height: '100%', width, background: barColor, borderRadius: 99, transition: 'width 0.8s cubic-bezier(0.34,1.56,0.64,1)' }} />
-      </div>
-    </div>
+    </>
   );
 }
 
-// ─── Status Badge ─────────────────────────────────────────────────────────────
-function StatusBadge({ status }: { status: EventStatus }) {
-  const m = STATUS_META[status];
+// ─── Request Review & Action Modal ───────────────────────────────────────────
+function RequestModal({
+  event, onClose, onAction,
+}: {
+  event: ClubEvent;
+  onClose: () => void;
+  onAction: (id: string, action: 'approve' | 'reject') => Promise<void>;
+}) {
+  const [loading, setLoading] = useState<'approve' | 'reject' | null>(null);
+
+  const handle = async (action: 'approve' | 'reject') => {
+    setLoading(action);
+    await onAction(event.id, action);
+    setLoading(null);
+    onClose();
+  };
+
   return (
-    <span className="stat-badge" style={{ background: m.bg, color: m.color, border: `1px solid ${m.border}`, display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '0.7rem', padding: '3px 9px', borderRadius: 20, fontWeight: 600 }}>
-      {status === 'Ongoing'
-        ? <span style={{ width: 7, height: 7, borderRadius: '50%', background: m.color, display: 'inline-block', animation: 'ping 1.5s ease-out infinite' }} />
-        : <m.Icon style={{ width: 11, height: 11 }} />}
-      {m.label}
-    </span>
+    <>
+      <Backdrop onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          className="w-full max-w-lg bg-gray-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+        >
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center">
+                <Inbox className="w-4 h-4 text-amber-400" />
+              </div>
+              <h2 className="text-sm font-bold text-white">Review Event Request</h2>
+            </div>
+            <button onClick={onClose} className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center">
+              <X className="w-3.5 h-3.5 text-gray-400" />
+            </button>
+          </div>
+
+          <div className="px-6 py-5 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-white font-semibold text-base leading-tight">{event.title}</p>
+                <p className="text-gray-500 text-xs mt-1">Status: Pending Admin Authorization</p>
+              </div>
+              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-300">{event.category}</span>
+            </div>
+
+            <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+              <p className="text-xs text-gray-500 font-medium mb-1">Description</p>
+              <p className="text-sm text-gray-300 leading-relaxed">{event.description}</p>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { icon: Clock, label: 'Date & Time', value: `${fmtDate(event.date)} · ${fmtTime(event.date)}` },
+                { icon: MapPin, label: 'Venue', value: event.venue },
+                { icon: User, label: 'Speaker', value: event.speaker || '—' },
+                { icon: Star, label: 'Seats', value: event.seatLimit ? `${event.seatLimit} seats` : 'Unlimited' },
+              ].map(({ icon: Icon, label, value }) => (
+                <div key={label} className="bg-white/[0.03] border border-white/[0.06] rounded-xl px-3 py-2.5">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Icon className="w-3 h-3 text-gray-500" />
+                    <p className="text-[0.65rem] text-gray-500 font-medium uppercase tracking-wide">{label}</p>
+                  </div>
+                  <p className="text-xs text-gray-200 font-medium">{value}</p>
+                </div>
+              ))}
+            </div>
+
+            {event.requestNote && (
+              <div className="bg-amber-500/[0.08] border border-amber-500/20 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <FileText className="w-3 h-3 text-amber-400" />
+                  <p className="text-[0.65rem] text-amber-400 font-medium uppercase tracking-wide">Request Note</p>
+                </div>
+                <p className="text-xs text-amber-200/80 leading-relaxed">{event.requestNote}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 px-6 py-4 border-t border-white/[0.06]">
+            <button
+              onClick={() => handle('reject')} disabled={!!loading}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all disabled:opacity-50"
+            >
+              {loading === 'reject' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Ban className="w-3.5 h-3.5" />}
+              Reject Request
+            </button>
+            <button
+              onClick={() => handle('approve')} disabled={!!loading}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 transition-all disabled:opacity-50"
+            >
+              {loading === 'approve' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              Approve & Publish
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </>
   );
 }
 
-// ─── Category Pill ────────────────────────────────────────────────────────────
-function CategoryPill({ category }: { category: EventCategory }) {
-  const c = CATEGORY_COLORS[category];
+// ─── View Event Details Modal ──────────────────────────────────────────────────
+function ViewEventModal({ event, onClose }: { event: ClubEvent; onClose: () => void }) {
   return (
-    <span style={{ background: `color-mix(in srgb, ${c} 12%, transparent)`, color: c, border: `1px solid color-mix(in srgb, ${c} 25%, transparent)`, fontSize: '0.68rem', fontWeight: 600, padding: '3px 10px', borderRadius: 20 }}>
-      {category}
-    </span>
+    <>
+      <Backdrop onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          className="w-full max-w-lg bg-gray-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+        >
+          <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+                <Eye className="w-4 h-4 text-indigo-400" />
+              </div>
+              <h2 className="text-sm font-bold text-white">Event Details</h2>
+            </div>
+            <button onClick={onClose} className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center">
+              <X className="w-3.5 h-3.5 text-gray-400" />
+            </button>
+          </div>
+          <div className="px-6 py-5 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-white font-semibold text-base">{event.title}</p>
+                {event.isFeatured && (
+                  <span className="inline-flex items-center gap-1 text-[0.65rem] text-amber-400 mt-1">
+                    <Star className="w-3 h-3 fill-amber-400" /> Featured Event
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-300">{event.category}</span>
+            </div>
+            <div className="bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+              <p className="text-xs text-gray-500 font-medium mb-1">Description</p>
+              <p className="text-sm text-gray-300 leading-relaxed">{event.description}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { icon: Clock, label: 'Date & Time', value: `${fmtDate(event.date)} · ${fmtTime(event.date)}` },
+                { icon: MapPin, label: 'Venue', value: event.venue },
+                { icon: User, label: 'Speaker', value: event.speaker || '—' },
+                { icon: Star, label: 'Seats limit', value: event.seatLimit ? `${event.seatLimit} seats` : 'Unlimited' },
+                { icon: CheckCircle2, label: 'Timeline', value: event.isUpcoming ? 'Upcoming' : 'Completed' },
+              ].map(({ icon: Icon, label, value }) => (
+                <div key={label} className="bg-white/[0.03] border border-white/[0.06] rounded-xl px-3 py-2.5">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Icon className="w-3 h-3 text-gray-500" />
+                    <p className="text-[0.65rem] text-gray-500 font-medium uppercase tracking-wide">{label}</p>
+                  </div>
+                  <p className="text-xs text-gray-200 font-medium">{value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex justify-end px-6 py-4 border-t border-white/[0.06]">
+            <button onClick={onClose} className="px-5 py-2 rounded-xl text-sm font-medium text-gray-400 hover:text-gray-200 hover:bg-white/[0.05]">
+              Close View
+            </button>
+          </div>
+        </motion.div>
+      </div>
+    </>
   );
 }
 
-// ─── Event Table Row ──────────────────────────────────────────────────────────
-const EventRow = memo(function EventRow({ event, index }: { event: ClubEvent; index: number }) {
+// ─── Event Table Row ───────────────────────────────────────────────────────────
+const EventRow = memo(function EventRow({
+  event, index, onView, onDelete,
+}: {
+  event: ClubEvent; index: number;
+  onView: (e: ClubEvent) => void;
+  onDelete: (id: string) => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
   const [hovered, setHovered] = useState(false);
+
+  const handleDelete = async () => {
+    if (!confirm(`Are you sure you want to delete "${event.title}"?`)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/events?id=${event.id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      onDelete(event.id);
+    } catch { alert('Delete failed'); }
+    finally { setDeleting(false); }
+  };
+
   return (
     <motion.tr
-      initial={{ opacity: 0, x: -12 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 12 }}
-      transition={{ delay: 0.04 * index, duration: 0.32, ease: cubicBezier(0.22, 1, 0.36, 1) }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{ background: hovered ? 'rgba(255,255,255,0.025)' : 'transparent', transition: 'background 0.15s' }}
+      initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}
+      transition={{ delay: 0.03 * index, duration: 0.28 }}
+      onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
+      className="transition-colors text-xs text-gray-300"
+      style={{ background: hovered ? 'rgba(255,255,255,0.02)' : 'transparent' }}
     >
-      <td className="td-cell">
-        <div style={{ fontWeight: 600, color: '#f3f4f6', fontSize: 13, marginBottom: 3 }}>{event.title}</div>
-        <div style={{ fontSize: 11, color: '#6b7280', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{event.description}</div>
-      </td>
-      <td className="td-cell">
-        <div style={{ color: '#d1d5db', fontSize: 13 }}>{fmtDate(event.date)}</div>
-        <div style={{ color: '#6b7280', fontSize: 11, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Clock style={{ width: 10, height: 10 }} />{event.time}
+      <td className="px-4 py-3 align-middle border-b border-white/[0.04]">
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] font-semibold text-gray-100">{event.title}</span>
+          {event.isFeatured && <Star className="w-3 h-3 text-amber-400 fill-amber-400 flex-shrink-0" />}
         </div>
+        <p className="text-[11px] text-gray-500 mt-0.5 max-w-[200px] truncate">{event.description}</p>
       </td>
-      <td className="td-cell"><CategoryPill category={event.category} /></td>
-      <td className="td-cell" style={{ minWidth: 140 }}>
-        <AttendeeBar attendees={event.attendees} capacity={event.capacity} />
+      <td className="px-4 py-3 align-middle border-b border-white/[0.04]">
+        <p className="text-[13px] text-gray-300">{fmtDate(event.date)}</p>
+        <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
+          <Clock className="w-2.5 h-2.5" />{fmtTime(event.date)}
+        </p>
       </td>
-      <td className="td-cell"><StatusBadge status={event.status} /></td>
-      <td className="td-cell">
-        <div style={{ color: '#d1d5db', fontSize: 13 }}>{event.organizer}</div>
-        <div style={{ color: '#6b7280', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <MapPin style={{ width: 10, height: 10 }} />{event.location}
-        </div>
+      <td className="px-4 py-3 align-middle border-b border-white/[0.04]">
+        <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-300">{event.category}</span>
       </td>
-      <td className="td-cell">
-        <div style={{ display: 'flex', gap: 6 }}>
+      
+      <td className="px-4 py-3 align-middle border-b border-white/[0.04]">
+        <span className={`inline-flex items-center gap-1.5 text-[0.7rem] font-semibold px-2.5 py-1 rounded-full border ${
+          event.isUpcoming
+            ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/25'
+            : 'bg-violet-500/10 text-violet-400 border-violet-500/25'
+        }`}>
+          {event.isUpcoming ? <Clock className="w-2.5 h-2.5" /> : <CheckCircle2 className="w-2.5 h-2.5" />}
+          {event.isUpcoming ? 'Upcoming' : 'Completed'}
+        </span>
+      </td>
+      <td className="px-4 py-3 align-middle border-b border-white/[0.04]">
+        <p className="text-[13px] text-gray-300">{event.speaker || '—'}</p>
+        <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
+          <MapPin className="w-2.5 h-2.5" />{event.venue}
+        </p>
+      </td>
+      <td className="px-4 py-3 align-middle border-b border-white/[0.04]">
+        <div className="flex items-center gap-1.5">
           {[
-            { Icon: Eye, title: 'View' },
-            { Icon: Pencil, title: 'Edit' },
-            { Icon: Trash2, title: 'Delete', danger: true },
-          ].map(({ Icon, title, danger }: { Icon: any; title: string; danger?: boolean }) => (
-            <motion.button
-              key={title}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.93 }}
-              title={title}
-              style={{
-                width: 30, height: 30, borderRadius: 8, border: '1px solid rgba(255,255,255,0.07)',
-                background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', color: danger ? '#f87171' : '#6b7280',
-                transition: 'background 0.15s, border-color 0.15s',
-              }}
-              onMouseEnter={e => {
-                (e.currentTarget as HTMLButtonElement).style.background = danger ? 'rgba(248,113,113,0.1)' : 'rgba(99,102,241,0.12)';
-                (e.currentTarget as HTMLButtonElement).style.borderColor = danger ? 'rgba(248,113,113,0.35)' : 'rgba(99,102,241,0.35)';
-              }}
-              onMouseLeave={e => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.07)';
-              }}
+            { Icon: Eye, title: 'View', danger: false, onClick: () => onView(event) },
+            { Icon: Trash2, title: 'Delete', danger: true, onClick: handleDelete, loading: deleting },
+          ].map(({ Icon, title, danger, onClick, loading }) => (
+            <button
+              key={title} title={title} onClick={onClick} disabled={loading}
+              className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all ${
+                danger
+                  ? 'border-white/[0.07] text-red-400 hover:bg-red-500/10 hover:border-red-500/30'
+                  : 'border-white/[0.07] text-gray-500 hover:bg-indigo-500/10 hover:border-indigo-500/30 hover:text-indigo-400'
+              } ${loading ? 'opacity-40 cursor-wait' : 'cursor-pointer'}`}
             >
-              <Icon style={{ width: 13, height: 13 }} />
-            </motion.button>
+              {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Icon className="w-3 h-3" />}
+            </button>
           ))}
         </div>
       </td>
@@ -305,439 +539,289 @@ const EventRow = memo(function EventRow({ event, index }: { event: ClubEvent; in
   );
 });
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Main Admin Module Dashboard Page ──────────────────────────────────────────
 export default function AdminEventsPage() {
   const [data, setData] = useState<EventsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [justRefreshed, setJustRefreshed] = useState(false);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<EventStatus | 'All'>('All');
-  const [categoryFilter, setCategoryFilter] = useState<EventCategory | 'All'>('All');
-  const lastFetchRef = useRef<number>(0);
+  const [catFilter, setCatFilter] = useState('All');
+  const [showAdd, setShowAdd] = useState(false);
+  const [viewEvent, setViewEvent] = useState<ClubEvent | null>(null);
+  const [reviewRequest, setReviewRequest] = useState<ClubEvent | null>(null);
+  const [activeTab, setActiveTab] = useState<'events' | 'requests'>('events');
+  const lastFetch = useRef(0);
   const prefersReducedMotion = useReducedMotion();
 
-  const fetchData = useCallback(async (isRefresh = false) => {
+  const loadData = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
       const d = await fetchEventsData();
       setData(d);
       setError('');
       setLastUpdated(new Date());
-      lastFetchRef.current = Date.now();
-      if (isRefresh) {
-        setJustRefreshed(true);
-        setTimeout(() => setJustRefreshed(false), 1200);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Failed to load events');
+      lastFetch.current = Date.now();
+    } catch (e: any) {
+      setError(e.message || 'Failed to load database contents');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { loadData(); }, [loadData]);
 
   useEffect(() => {
-    const interval = setInterval(() => fetchData(true), 60_000);
-    const onFocus = () => { if (Date.now() - lastFetchRef.current > 30_000) fetchData(true); };
+    const t = setInterval(() => loadData(true), 60_000);
+    const onFocus = () => { if (Date.now() - lastFetch.current > 30_000) loadData(true); };
     const onVis = () => { if (document.visibilityState === 'visible') onFocus(); };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVis);
-    return () => { clearInterval(interval); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVis); };
-  }, [fetchData]);
+    return () => { clearInterval(t); window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onVis); };
+  }, [loadData]);
 
-  const statCards = useMemo(() => {
+  const handleApproveReject = useCallback(async (id: string, action: 'approve' | 'reject') => {
+    try {
+      const res = await fetch('/api/admin/events', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, action }),
+      });
+      if (res.ok) {
+        await loadData(true);
+      } else {
+        alert('Action execution error from server handler');
+      }
+    } catch {
+      alert('Action failed');
+    }
+  }, [loadData]);
+
+  const handleDeleteEvent = useCallback((id: string) => {
+    setData(prev => prev ? { ...prev, events: prev.events.filter(e => e.id !== id) } : prev);
+  }, []);
+
+  // Compute categories array purely dynamically based on database entries pool
+  const categories = useMemo(() => {
     if (!data) return [];
-    return [
-      { title: 'Total Events',     value: data.stats.total,        Icon: Calendar,     accent: '#6366f1' },
-      { title: 'Upcoming',         value: data.stats.upcoming,     Icon: Clock,        accent: '#818cf8' },
-      { title: 'Ongoing',          value: data.stats.ongoing,      Icon: Radio,        accent: '#34d399' },
-      { title: 'Completed',        value: data.stats.completed,    Icon: CheckCircle2, accent: '#a78bfa' },
-      { title: 'Total Attendees',  value: data.stats.totalAttendees, Icon: Users,      accent: '#06b6d4' },
-    ];
+    const allCats = [...data.events, ...data.pendingRequests, ...data.rejectedEvents].map(e => e.category).filter(Boolean);
+    return Array.from(new Set(allCats));
   }, [data]);
 
   const filtered = useMemo(() => {
     if (!data) return [];
     const q = search.toLowerCase();
     return data.events.filter(e => {
-      const matchQ = e.title.toLowerCase().includes(q) || e.organizer.toLowerCase().includes(q) || e.location.toLowerCase().includes(q);
-      const matchS = statusFilter === 'All' || e.status === statusFilter;
-      const matchC = categoryFilter === 'All' || e.category === categoryFilter;
-      return matchQ && matchS && matchC;
+      const mQ = !q || e.title.toLowerCase().includes(q) || e.venue.toLowerCase().includes(q) || e.speaker.toLowerCase().includes(q);
+      const mC = catFilter === 'All' || e.category === catFilter;
+      return mQ && mC;
     });
-  }, [data, search, statusFilter, categoryFilter]);
+  }, [data, search, catFilter]);
 
-  const containerVariants = useMemo(() => ({
-    hidden: {},
-    show: { transition: prefersReducedMotion ? {} : { staggerChildren: 0.06, delayChildren: 0.06 } },
-  }), [prefersReducedMotion]);
+  // Compute analytical metric datasets dynamically on active domain rows
+  const dynamicCategoryChartData = useMemo(() => {
+    if (!data) return [];
+    const countsMap: Record<string, number> = {};
+    categories.forEach(c => { countsMap[c] = 0; });
+    data.events.forEach(e => { if (countsMap[e.category] !== undefined) countsMap[e.category]++; });
+    return Object.entries(countsMap).map(([name, count]) => ({ name, count }));
+  }, [data, categories]);
 
-  const fade = useCallback((delay = 0) => prefersReducedMotion
-    ? { initial: { opacity: 1, y: 0 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
-    : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.35, delay, ease: cubicBezier(0.22, 1, 0.36, 1) } }
-  , [prefersReducedMotion]);
+  const statCards = useMemo(() => !data ? [] : [
+    { label: 'Total Events', value: data.stats.total,    color: '#6366f1', Icon: Calendar },
+    { label: 'Upcoming',     value: data.stats.upcoming,  color: '#818cf8', Icon: Clock },
+    { label: 'Completed',    value: data.stats.completed, color: '#a78bfa', Icon: CheckCircle2 },
+    { label: 'Featured',     value: data.stats.featured,  color: '#fbbf24', Icon: Star },
+  ], [data]);
 
-  if (loading) return <div className="dashboard-wrap"><style>{styles}</style><EventsSkeleton /></div>;
+  if (loading) return (
+    <div className="p-6 space-y-4"><Skeleton className="h-36" /><div className="grid grid-cols-4 gap-4"><Skeleton className="h-24 w-full" /></div></div>
+  );
+
   if (error || !data) return (
-    <div className="dashboard-wrap">
-      <style>{styles}</style>
-      <div className="error-state">
-        <AlertCircle style={{ width: 36, height: 36, color: '#f87171' }} />
-        <p className="error-title">Events couldn't load</p>
-        <p className="error-sub">{error}</p>
-        <button onClick={() => fetchData()} className="retry-btn">Try again</button>
-      </div>
+    <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-center p-6">
+      <AlertCircle className="w-10 h-10 text-red-400" />
+      <p className="text-red-400 font-semibold">Events couldn't load</p>
+      <p className="text-gray-500 text-sm max-w-xs">{error}</p>
+      <button onClick={() => loadData()} className="mt-2 px-5 py-2 rounded-xl bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 text-sm font-medium hover:bg-indigo-500/25 transition-colors">Try again</button>
     </div>
   );
 
-  const hasMonthly = data.monthlyData.some(d => d.events > 0);
+  const hasMonthly = data.monthlyData?.some(d => d.events > 0);
 
   return (
-    <div className={`dashboard-wrap ${justRefreshed ? 'just-refreshed' : ''}`}>
-      <style>{styles}</style>
+    <div className="p-5 space-y-5">
+      <AnimatePresence mode="wait">
+        {showAdd && (
+          <AddEventModal onClose={() => setShowAdd(false)} onCreated={() => loadData(true)} existingCategories={categories} />
+        )}
+        {viewEvent && (
+          <ViewEventModal event={viewEvent} onClose={() => setViewEvent(null)} />
+        )}
+        {reviewRequest && (
+          <RequestModal event={reviewRequest} onClose={() => setReviewRequest(null)} onAction={handleApproveReject} />
+        )}
+      </AnimatePresence>
 
-      {/* ── Hero Banner (matches overview) ── */}
-      <motion.div {...fade(0)} className="hero-banner">
-        <div className="hero-blob hero-blob-1" />
-        <div className="hero-blob hero-blob-2" />
-        <div className="hero-sheen" />
-        <div className="hero-inner">
+      {/* Hero Banner */}
+      <div className="relative overflow-hidden rounded-2xl bg-white/[0.03] border border-white/[0.07] px-7 py-6">
+        <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 to-transparent pointer-events-none" />
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
           <div>
-            <div className="hero-title-row">
-              <Calendar className="sparkle-icon" style={{ color: '#818cf8' }} />
-              <h1 className="hero-title">Event Management</h1>
+            <div className="flex items-center gap-2.5 mb-1.5">
+              <Calendar className="w-5 h-5 text-indigo-400" />
+              <h1 className="text-2xl font-extrabold text-white tracking-tight">Event Management</h1>
             </div>
-            <p className="hero-sub">View, create, and manage club events — track attendance and status</p>
+            <p className="text-gray-400 text-sm">Manage club events · approve requests · track registrations</p>
             {lastUpdated && (
-              <div className="live-row">
-                <span className="live-dot-wrap">
-                  <span className="live-ping" />
-                  <span className="live-dot" />
+              <div className="flex items-center gap-2 mt-2.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400" />
                 </span>
-                <span className="live-text">
-                  Live · Updated {lastUpdated.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                </span>
+                <span className="text-[11px] text-gray-500">Live · {lastUpdated.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
               </div>
             )}
           </div>
 
-          <div className="hero-right">
-            <div className="hero-pills">
-              <div className="hero-pill">
-                <span className="pill-label">Next Event</span>
-                <span className="pill-event">
-                  {data.events.find(e => e.status === 'Upcoming')?.title || 'None scheduled'}
-                </span>
-              </div>
-              <div className="hero-pill">
-                <span className="pill-label">This Month</span>
-                <span className="pill-value">
-                  <AnimatedNumber value={data.stats.upcoming + data.stats.ongoing} />
-                </span>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <motion.button
-                onClick={() => fetchData(true)}
-                disabled={refreshing}
-                whileTap={{ scale: 0.95 }}
-                className={`refresh-btn ${refreshing ? 'refreshing' : ''}`}
-              >
-                <RefreshCw className={`refresh-icon ${refreshing ? 'spin' : ''}`} />
-                {refreshing ? 'Refreshing…' : 'Refresh'}
-              </motion.button>
-              <motion.button
-                whileHover={{ y: -2 }}
-                whileTap={{ scale: 0.96 }}
-                className="add-btn"
-              >
-                <Plus style={{ width: 15, height: 15 }} />
-                Add Event
-              </motion.button>
-            </div>
+          <div className="flex items-center gap-3">
+            {data.stats.pendingCount > 0 && (
+              <button onClick={() => setActiveTab('requests')} className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-all"><Bell className="w-3.5 h-3.5" />{data.stats.pendingCount} pending</button>
+            )}
+            <button onClick={() => loadData(true)} disabled={refreshing} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.05] border border-white/[0.08] text-gray-400 hover:text-gray-200 text-sm font-medium transition-all"><RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />Refresh</button>
+            <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-all shadow-lg shadow-indigo-500/25"><Plus className="w-3.5 h-3.5" />Add Event</button>
           </div>
         </div>
-      </motion.div>
+      </div>
 
-      {/* ── Stat Cards ── */}
-      <motion.div className="stat-grid-5" variants={containerVariants} initial="hidden" animate="show">
-        {statCards.map(s => <StatCard key={s.title} s={s} />)}
-      </motion.div>
-
-      {/* ── Charts Row ── */}
-      <div className="grid-2-1">
-        {/* Monthly Events Area Chart */}
-        <motion.div {...fade(0.12)} className="card">
-          <div className="card-header">
-            <h3 className="card-title">Events Activity</h3>
-            <span className="chip">Last 6 Months</span>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map((s) => (
+          <div key={s.label} className="relative overflow-hidden bg-white/[0.025] border border-white/[0.06] rounded-2xl p-5">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3 border" style={{ background: `${s.color}20`, borderColor: `${s.color}40` }}><s.Icon style={{ color: s.color, width: 16, height: 16 }} /></div>
+            <p className="text-[26px] font-extrabold text-white tracking-tight leading-none"><AnimatedNumber value={s.value} /></p>
+            <p className="text-xs text-gray-500 mt-1.5">{s.label}</p>
           </div>
+        ))}
+      </div>
+
+      {/* Charts Matrix */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 bg-white/[0.025] border border-white/[0.06] rounded-2xl p-5">
+          <h3 className="text-sm font-bold text-gray-100 mb-4">Events Activity</h3>
           {!hasMonthly ? (
-            <div className="empty-state">
-              <BarChart3 className="empty-icon" />
-              <p className="empty-title">No activity recorded yet</p>
-            </div>
+            <div className="flex flex-col items-center justify-center h-48 gap-2"><BarChart3 className="w-8 h-8 text-gray-700" /><p className="text-xs text-gray-600">No stream entries logged</p></div>
           ) : (
-            <ResponsiveContainer width="100%" height={220}>
+            <ResponsiveContainer width="100%" height={180}>
               <AreaChart data={data.monthlyData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="gEvents" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="gAttendees" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
+                <defs><linearGradient id="gEv" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6366f1" stopOpacity={0.35} /><stop offset="95%" stopColor="#6366f1" stopOpacity={0} /></linearGradient></defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="name" stroke="#4b5563" fontSize={11} tickLine={false} axisLine={false} />
-                <YAxis stroke="#4b5563" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-                <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'rgba(99,102,241,0.2)', strokeWidth: 1 }} />
-                <Area type="monotone" dataKey="events" stroke="#6366f1" fill="url(#gEvents)" strokeWidth={2.5} name="Events" dot={false} activeDot={{ r: 5, fill: '#6366f1' }} isAnimationActive={!prefersReducedMotion} animationDuration={700} animationEasing="ease-out" />
-                <Area type="monotone" dataKey="attendees" stroke="#06b6d4" fill="url(#gAttendees)" strokeWidth={2} name="Attendees" dot={false} activeDot={{ r: 4, fill: '#06b6d4' }} isAnimationActive={!prefersReducedMotion} animationDuration={900} animationEasing="ease-out" />
+                <XAxis dataKey="name" stroke="#4b5563" fontSize={10} tickLine={false} />
+                <YAxis stroke="#4b5563" fontSize={11} tickLine={false} allowDecimals={false} />
+                <Tooltip content={<ChartTip />} />
+                <Area type="monotone" dataKey="events" stroke="#6366f1" fill="url(#gEv)" strokeWidth={2} name="Events" isAnimationActive={!prefersReducedMotion} />
               </AreaChart>
             </ResponsiveContainer>
           )}
-        </motion.div>
+        </div>
 
-        {/* Category Bar Chart */}
-        <motion.div {...fade(0.16)} className="card">
-          <div className="card-header">
-            <h3 className="card-title">By Category</h3>
-            <span className="chip">All Time</span>
-          </div>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={data.categoryData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-              <defs>
-                <linearGradient id="gCat" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#6366f1" stopOpacity={0.9} />
-                  <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.5} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-              <XAxis dataKey="name" stroke="#4b5563" fontSize={10} tickLine={false} axisLine={false} />
-              <YAxis stroke="#4b5563" fontSize={11} tickLine={false} axisLine={false} allowDecimals={false} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(99,102,241,0.06)' }} />
-              <Bar dataKey="count" fill="url(#gCat)" radius={[6, 6, 0, 0]} name="Events" isAnimationActive={!prefersReducedMotion} animationDuration={700} animationEasing="ease-out" />
-            </BarChart>
-          </ResponsiveContainer>
-        </motion.div>
+        <div className="bg-white/[0.025] border border-white/[0.06] rounded-2xl p-5">
+          <h3 className="text-sm font-bold text-gray-100 mb-4">By Custom Categories</h3>
+          {dynamicCategoryChartData.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 text-center text-xs text-gray-600"><Tag className="w-6 h-6 mb-1 mx-auto" />No categories detected.</div>
+          ) : (
+            <ResponsiveContainer width="100%" height={180}>
+              <BarChart data={dynamicCategoryChartData} margin={{ top: 4, right: 4, left: -25, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="name" stroke="#4b5563" fontSize={9} tickLine={false} />
+                <YAxis stroke="#4b5563" fontSize={10} tickLine={false} allowDecimals={false} />
+                <Tooltip content={<ChartTip />} />
+                <Bar dataKey="count" fill="#818cf8" radius={[4, 4, 0, 0]} name="EventsCount" isAnimationActive={!prefersReducedMotion} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
 
-      {/* ── Events Table ── */}
-      <motion.div {...fade(0.22)} className="card">
-        {/* Table header / filters */}
-        <div className="card-header" style={{ flexWrap: 'wrap', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h3 className="card-title">All Events</h3>
-            <span className="activity-count">{filtered.length}</span>
+      {/* Tables Lists */}
+      <div className="bg-white/[0.025] border border-white/[0.06] rounded-2xl overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.06] px-5 pt-4">
+          <div className="flex gap-2">
+            <button onClick={() => setActiveTab('events')} className={`pb-3 text-sm font-semibold border-b-2 px-2 transition-all ${activeTab === 'events' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>All Approved Events ({data.events.length})</button>
+            <button onClick={() => setActiveTab('requests')} className={`pb-3 text-sm font-semibold border-b-2 px-2 transition-all ${activeTab === 'requests' ? 'border-amber-400 text-amber-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>Pending Requests ({data.pendingRequests.length})</button>
           </div>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginLeft: 'auto' }}>
-            {/* Search */}
-            <div className="search-wrap">
-              <Search style={{ width: 13, height: 13, color: '#6b7280', flexShrink: 0 }} />
-              <input
-                className="search-input"
-                placeholder="Search events…"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
+
+          {activeTab === 'events' && (
+            <div className="flex items-center gap-2 pb-2">
+              <div className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-1.5">
+                <Search className="w-3 h-3 text-gray-600" />
+                <input className="bg-transparent text-gray-200 text-xs outline-none w-36 placeholder-gray-600" placeholder="Search fields…" value={search} onChange={e => setSearch(e.target.value)} />
+              </div>
+              <div className="relative">
+                <select className="appearance-none bg-white/[0.04] border border-white/[0.08] rounded-xl text-xs text-gray-400 px-3 py-1.5 pr-7 outline-none cursor-pointer" value={catFilter} onChange={e => setCatFilter(e.target.value)}>
+                  <option value="All">All Categories</option>
+                  {categories.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-600 pointer-events-none" />
+              </div>
             </div>
-            {/* Status filter */}
-            <div className="select-wrap">
-              <select className="filter-select" value={statusFilter} onChange={e => setStatusFilter(e.target.value as any)}>
-                {['All', 'Upcoming', 'Ongoing', 'Completed', 'Cancelled'].map(v => (
-                  <option key={v} value={v}>{v === 'All' ? 'All Status' : v}</option>
-                ))}
-              </select>
-              <ChevronDown style={{ width: 12, height: 12, color: '#6b7280', pointerEvents: 'none', position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)' }} />
-            </div>
-            {/* Category filter */}
-            <div className="select-wrap">
-              <select className="filter-select" value={categoryFilter} onChange={e => setCategoryFilter(e.target.value as any)}>
-                {['All', 'Workshop', 'Hackathon', 'Seminar', 'Competition', 'Social'].map(v => (
-                  <option key={v} value={v}>{v === 'All' ? 'All Categories' : v}</option>
-                ))}
-              </select>
-              <ChevronDown style={{ width: 12, height: 12, color: '#6b7280', pointerEvents: 'none', position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)' }} />
-            </div>
-          </div>
+          )}
         </div>
 
-        {/* Table */}
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 780 }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                {['Event', 'Date & Time', 'Category', 'Attendance', 'Status', 'Organizer', 'Actions'].map(h => (
-                  <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 11, fontWeight: 500, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={7}>
-                    <div className="empty-state">
-                      <Calendar className="empty-icon" />
-                      <p className="empty-title">No events match your filters</p>
-                      <p className="empty-sub">Try adjusting the search or filter criteria.</p>
-                    </div>
-                  </td>
+        {activeTab === 'events' && (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[780px]">
+              <thead>
+                <tr className="border-b border-white/[0.05] bg-white/[0.01] text-[10px] font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                  {['Event info', 'Timeline schedule', 'Category tag', 'State status', 'Speaker allocation', 'Actions panel'].map(h => <th key={h} className="px-4 py-3 text-left">{h}</th>)}
                 </tr>
-              ) : (
-                <AnimatePresence initial={false}>
-                  {filtered.map((ev, i) => <EventRow key={ev.id} event={ev} index={i} />)}
-                </AnimatePresence>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </motion.div>
+              </thead>
+              <tbody>
+                {filtered.length === 0 ? (
+                  <tr><td colSpan={7} className="text-center py-14 text-xs text-gray-600">No approved events data records found.</td></tr>
+                ) : (
+                  <AnimatePresence mode="popLayout">{filtered.map((ev, i) => <EventRow key={ev.id} event={ev} index={i} onView={e => setViewEvent(e)} onDelete={handleDeleteEvent} />)}</AnimatePresence>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
 
-      
+        {activeTab === 'requests' && (
+          <div className="p-5">
+            {data.pendingRequests.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-14 gap-2 text-center text-xs text-gray-500"><Inbox className="w-8 h-8 text-gray-700" /><p className="text-sm text-gray-600 font-medium">No pending requests</p></div>
+            ) : (
+              <div className="space-y-3">
+                {data.pendingRequests.map((req) => (
+                  <div key={req.id} className="flex flex-wrap md:flex-nowrap items-center justify-between gap-4 bg-white/[0.02] border border-white/[0.06] hover:border-amber-500/30 rounded-xl p-4 transition-all">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0"><Calendar className="w-4 h-4 text-amber-400" /></div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-sm font-semibold text-gray-100 truncate">{req.title}</p>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-400">{req.category}</span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                          <span className="flex items-center gap-1"><Clock className="w-2.5 h-2.5" /> {fmtDate(req.date)} · {fmtTime(req.date)}</span>
+                          <span className="flex items-center gap-1"><MapPin className="w-2.5 h-2.5" /> {req.venue}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button onClick={() => setReviewRequest(req)} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.07] text-xs text-gray-300 hover:text-white"><Eye className="w-3 h-3" /> Inspect View</button>
+                      <button onClick={() => handleApproveReject(req.id, 'reject')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400"><Ban className="w-3 h-3" /> Reject</button>
+                      <button onClick={() => handleApproveReject(req.id, 'approve')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400"><Check className="w-3 h-3" /> Approve</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
-
-// ─── Styles ────────────────────────────────────────────────────────────────────
-const styles = `
-  .dashboard-wrap { --primary: #6366f1; font-family: system-ui, -apple-system, sans-serif; }
-  .dashboard-wrap * { box-sizing: border-box; }
-  .space-y-5 > * + * { margin-top: 1.25rem; }
-
-  /* Skeleton */
-  .skeleton { background: linear-gradient(90deg, rgba(255,255,255,0.04) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.04) 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
-  @keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
-
-  /* Error */
-  .error-state { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 50vh; gap: 8px; text-align: center; }
-  .error-title { color: #f87171; font-weight: 600; font-size: 1rem; }
-  .error-sub { color: #6b7280; font-size: 0.875rem; max-width: 300px; }
-  .retry-btn { margin-top: 8px; padding: 8px 20px; border-radius: 10px; background: rgba(99,102,241,0.15); color: #818cf8; border: 1px solid rgba(99,102,241,0.3); font-size: 0.875rem; font-weight: 500; cursor: pointer; }
-  .retry-btn:hover { background: rgba(99,102,241,0.25); }
-  .retry-btn:focus-visible { outline: 2px solid #818cf8; outline-offset: 2px; }
-
-  /* Hero */
-  .hero-banner { position: relative; overflow: hidden; border-radius: 20px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.07); padding: 28px 32px; transition: border-color 0.4s ease; }
-  .hero-blob { position: absolute; border-radius: 50%; filter: blur(60px); pointer-events: none; }
-  .hero-blob-1 { width: 280px; height: 280px; top: -80px; right: -80px; background: rgba(99,102,241,0.18); animation: drift1 18s ease-in-out infinite; }
-  .hero-blob-2 { width: 240px; height: 240px; bottom: -80px; left: -60px; background: rgba(139,92,246,0.15); animation: drift2 22s ease-in-out infinite; }
-  @keyframes drift1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-20px,20px) scale(1.08); } }
-  @keyframes drift2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(20px,-15px) scale(1.05); } }
-  .hero-sheen { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg,transparent 40%,rgba(255,255,255,0.05) 50%,transparent 60%); background-size: 250% 250%; background-position: 100% 0; animation: sheen 6s ease-in-out infinite; }
-  @keyframes sheen { 0%,100% { background-position: 120% 0; } 50% { background-position: -20% 0; } }
-  .hero-inner { position: relative; z-index: 1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; }
-  .hero-title-row { display: flex; align-items: center; gap: 10px; }
-  .hero-title { font-size: clamp(1.5rem,3vw,2rem); font-weight: 800; color: #fff; letter-spacing: -0.02em; margin: 0; }
-  .sparkle-icon { width: 22px; height: 22px; flex-shrink: 0; display: block; }
-  .hero-sub { color: #9ca3af; font-size: 0.9rem; margin: 6px 0 0; }
-  .live-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
-  .live-dot-wrap { position: relative; width: 10px; height: 10px; flex-shrink: 0; }
-  .live-ping { position: absolute; inset: 0; border-radius: 50%; background: #4ade80; opacity: 0.6; animation: ping 1.5s ease-out infinite; }
-  .live-dot { position: absolute; inset: 1px; border-radius: 50%; background: #4ade80; }
-  @keyframes ping { 0% { transform: scale(1); opacity: 0.6 } 100% { transform: scale(2.2); opacity: 0 } }
-  .live-text { font-size: 0.75rem; color: #6b7280; }
-  .hero-right { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-  .hero-pills { display: flex; gap: 12px; }
-  .hero-pill { background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07); border-radius: 14px; padding: 10px 16px; min-width: 120px; transition: background 0.2s, border-color 0.2s; }
-  .hero-pill:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.12); }
-  .pill-label { display: block; font-size: 0.65rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
-  .pill-value { font-size: 1.5rem; font-weight: 800; color: #fff; line-height: 1; }
-  .pill-event { font-size: 0.85rem; font-weight: 600; color: #e5e7eb; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 140px; }
-  .refresh-btn { display: flex; align-items: center; gap: 7px; padding: 10px 18px; border-radius: 12px; background: rgba(99,102,241,0.12); color: #818cf8; border: 1px solid rgba(99,102,241,0.25); font-size: 0.875rem; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
-  .refresh-btn:hover:not(:disabled) { background: rgba(99,102,241,0.22); }
-  .refresh-btn:focus-visible { outline: 2px solid #818cf8; outline-offset: 2px; }
-  .refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .refresh-icon { width: 15px; height: 15px; flex-shrink: 0; }
-  .spin { animation: spin 0.7s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg) } }
-  .add-btn { display: flex; align-items: center; gap: 7px; padding: 10px 18px; border-radius: 12px; background: #6366f1; color: #fff; border: none; font-size: 0.875rem; font-weight: 600; cursor: pointer; white-space: nowrap; box-shadow: 0 4px 16px rgba(99,102,241,0.35); transition: box-shadow 0.15s; }
-  .add-btn:hover { box-shadow: 0 6px 24px rgba(99,102,241,0.5); }
-
-  /* Refresh flash */
-  .just-refreshed .card, .just-refreshed .stat-card { animation: refreshGlow 1.2s ease-out; }
-  @keyframes refreshGlow { 0% { box-shadow: 0 0 0 0 rgba(99,102,241,0); } 15% { box-shadow: 0 0 0 1px rgba(99,102,241,0.35); } 100% { box-shadow: 0 0 0 0 rgba(99,102,241,0); } }
-
-  /* Stat grids */
-  .stat-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; }
-  .stat-grid-5 { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; }
-  @media (min-width: 1024px) { .stat-grid { grid-template-columns: repeat(4,1fr); } .stat-grid-5 { grid-template-columns: repeat(5,1fr); } }
-
-  /* Stat card */
-  .stat-card { position: relative; display: block; background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06); border-radius: 18px; padding: 20px; overflow: hidden; text-decoration: none; transition: border-color 0.2s, box-shadow 0.2s; cursor: pointer; }
-  .stat-card:hover { border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: 0 8px 24px -12px color-mix(in srgb, var(--accent) 50%, transparent); }
-  .stat-glow { position: absolute; inset: 0; border-radius: inherit; background: radial-gradient(ellipse at 30% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%); pointer-events: none; opacity: 0; transition: opacity 0.2s; }
-  .stat-card:hover .stat-glow { opacity: 1; }
-  .stat-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-  .stat-icon-wrap { width: 42px; height: 42px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 15%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: transform 0.2s ease; }
-  .stat-card:hover .stat-icon-wrap { transform: scale(1.08) rotate(-4deg); }
-  .stat-icon { width: 18px; height: 18px; color: var(--accent); }
-  .stat-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 0.72rem; font-weight: 600; padding: 3px 8px; border-radius: 20px; }
-  .stat-value { font-size: 2rem; font-weight: 800; color: #fff; letter-spacing: -0.03em; line-height: 1; margin: 0 0 8px; }
-  .stat-footer { display: flex; align-items: center; justify-content: space-between; }
-  .stat-title { font-size: 0.8rem; color: #9ca3af; }
-
-  /* Grid */
-  .grid-2-1 { display: grid; grid-template-columns: 1fr; gap: 14px; }
-  @media (min-width: 1024px) { .grid-2-1 { grid-template-columns: 2fr 1fr; } }
-
-  /* Cards */
-  .card { background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06); border-radius: 20px; padding: 22px; transition: border-color 0.2s; }
-  .card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
-  .card-title { font-size: 0.95rem; font-weight: 700; color: #f3f4f6; margin: 0; }
-  .chip { font-size: 0.7rem; color: #6b7280; background: rgba(255,255,255,0.05); border-radius: 20px; padding: 4px 10px; }
-  .activity-count { font-size: 0.72rem; background: rgba(99,102,241,0.2); color: #818cf8; border-radius: 20px; padding: 3px 9px; font-weight: 600; }
-  .zap-icon { width: 16px; height: 16px; color: #fbbf24; }
-
-  /* Empty state */
-  .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; text-align: center; gap: 8px; }
-  .empty-icon { width: 32px; height: 32px; color: #374151; }
-  .empty-title { font-size: 0.875rem; color: #6b7280; font-weight: 500; margin: 0; }
-  .empty-sub { font-size: 0.78rem; color: #4b5563; margin: 0; max-width: 220px; }
-
-  /* Table */
-  .td-cell { padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: middle; }
-
-  /* Search & filters */
-  .search-wrap { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 7px 12px; transition: border-color 0.2s; }
-  .search-wrap:focus-within { border-color: rgba(99,102,241,0.45); }
-  .search-input { background: transparent; border: none; color: #e5e7eb; font-size: 0.82rem; outline: none; width: 160px; }
-  .search-input::placeholder { color: #4b5563; }
-  .select-wrap { position: relative; display: flex; align-items: center; }
-  .filter-select { appearance: none; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; color: #9ca3af; font-size: 0.82rem; padding: 7px 30px 7px 12px; cursor: pointer; outline: none; transition: border-color 0.2s; }
-  .filter-select:focus { border-color: rgba(99,102,241,0.45); }
-  .filter-select option { background: #1f2937; }
-
-  /* Quick Actions */
-  .qa-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
-  @media (min-width: 768px) { .qa-grid { grid-template-columns: repeat(4,1fr); } }
-  .qa-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 20px 12px; border-radius: 16px; background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); text-decoration: none; transition: background 0.18s, border-color 0.18s; }
-  .qa-item:hover { background: color-mix(in srgb, var(--c) 8%, transparent); border-color: color-mix(in srgb, var(--c) 35%, transparent); }
-  .qa-item:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
-  .qa-icon-wrap { width: 44px; height: 44px; border-radius: 14px; background: color-mix(in srgb, var(--c) 15%, transparent); display: flex; align-items: center; justify-content: center; transition: transform 0.15s; }
-  .qa-item:hover .qa-icon-wrap { transform: scale(1.1) rotate(-3deg); }
-  .qa-icon { width: 20px; height: 20px; color: var(--c); }
-  .qa-label { font-size: 0.82rem; color: #9ca3af; font-weight: 500; transition: color 0.15s; }
-  .qa-item:hover .qa-label { color: #e5e7eb; }
-
-  /* Chart tooltip */
-  .chart-tooltip { background: #111827; border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 8px 12px; font-size: 0.78rem; }
-  .tooltip-label { color: #e5e7eb; font-weight: 600; margin-bottom: 4px; }
-  .tooltip-value { color: #9ca3af; margin: 2px 0; }
-
-  /* Ping animation for Ongoing badge */
-  @keyframes ping { 0% { transform: scale(1); opacity: 0.6 } 100% { transform: scale(2.2); opacity: 0 } }
-
-  /* Reduced motion */
-  @media (prefers-reduced-motion: reduce) {
-    .spin, .live-ping, .skeleton, .hero-blob-1, .hero-blob-2, .hero-sheen,
-    .just-refreshed .card, .just-refreshed .stat-card { animation: none !important; }
-  }
-`;

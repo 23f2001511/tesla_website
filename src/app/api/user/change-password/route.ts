@@ -1,40 +1,22 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { User } from '@/models/User';
-import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-
-const JWT_SECRET =
-  process.env.JWT_SECRET || 'fallback_secret_for_development_only';
+import { requireAuth } from '@/lib/auth';
 
 export async function PUT(req: Request) {
   try {
+    const { payload, response: authError } = await requireAuth();
+    if (authError) return authError;
+
     await connectDB();
-
-    const cookieStore = await cookies();
-    const token = cookieStore.get('token')?.value;
-
-    if (!token) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Unauthorized'
-        },
-        { status: 401 }
-      );
-    }
-
-    const decoded = jwt.verify(token, JWT_SECRET) as {
-      userId: string;
-    };
 
     const {
       currentPassword,
       newPassword
     } = await req.json();
 
-    const user = await User.findById(decoded.userId);
+    const user = await User.findById(payload!.userId);
 
     if (!user) {
       return NextResponse.json(
