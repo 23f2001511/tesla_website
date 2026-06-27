@@ -63,8 +63,17 @@ const userSchema = new mongoose.Schema(
     bio:          { type: String, default: '' },
     profileImage: { type: String, default: '' },
     portfolio:    { type: String, default: '' },
+    resume:       { type: String, default: '' },
+    phone:        { type: String, default: '' },
+    availability: { type: String, default: '' },
 
-    skills:       [{ type: String }],
+    currentSemester: { type: Number },
+    cgpa:            { type: String, default: '' },
+
+    skills:           [{ type: String }],
+    interests:        [{ type: String }],
+    languages:        [{ type: String }],
+    preferredDomains: [{ type: String }],
     achievements: [achievementSchema],
     projects:     [projectSchema],
 
@@ -72,6 +81,7 @@ const userSchema = new mongoose.Schema(
       linkedin:  { type: String, default: '' },
       github:    { type: String, default: '' },
       instagram: { type: String, default: '' },
+      twitter:   { type: String, default: '' },
     },
 
     isPublic:   { type: Boolean, default: true },
@@ -79,8 +89,10 @@ const userSchema = new mongoose.Schema(
     isVerified: { type: Boolean, default: false },
 
     preferences: {
-      emailNotifications: { type: Boolean, default: true },
-      theme:              { type: String, enum: ['dark', 'light'], default: 'dark' },
+      emailNotifications:  { type: Boolean, default: true },
+      theme:               { type: String, default: 'dark' },
+      coverBanner:         { type: String, default: '' },
+      openToCollaboration: { type: Boolean, default: false },
     },
   },
   { timestamps: true }

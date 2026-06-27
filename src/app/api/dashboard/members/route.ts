@@ -32,31 +32,38 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    // ─── RECENT REPOSITORY DATA STREAMS (LIMIT 4 FOR CLEAN UI) ───
-    const latestBlogs = await Blog.find({ status: 'Published' }).sort({ createdAt: -1 }).limit(3).lean();
-    const upcomingEvents = await Event.find({ date: { $gte: new Date() } }).sort({ date: 1 }).limit(3).lean();
-    
-    // Parsing Activity timeline array dynamically from real updates
+    // ─── RECENT DATA (scoped to THIS member) ───
+    const latestBlogs = await Blog.find({ author: user._id }).sort({ createdAt: -1 }).limit(4).lean();
+    const registeredEvents = await Event.find({ registeredUsers: user._id }).sort({ date: -1 }).limit(6).lean();
+    const upcomingEvents = await Event.find({ date: { $gte: new Date() } }).sort({ date: 1 }).limit(4).lean();
+
+    // ─── Real activity timeline, built from the member's own records ───
+    const fmt = (d: any) => new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
     const activeTimeline = [
-      { action: `Logged into TESLA Workspace Portal`, time: 'Just now', type: 'System', color: '#10b981' },
-    ];
-    if (personalBlogsCount > 0) {
-      activeTimeline.push({ action: 'Contributed an active technical blog log', time: 'Recently', type: 'Blog', color: '#3b82f6' });
-    }
-    if (personalResourcesCount > 0) {
-      activeTimeline.push({ action: 'Uploaded academic node study package', time: 'Recently', type: 'Resource', color: '#6366f1' });
-    }
+      ...latestBlogs.map((b: any) => ({
+        action: `Published blog "${b.title}"`, time: fmt(b.createdAt), type: 'Blog', color: '#3b82f6',
+        ts: new Date(b.createdAt).getTime(),
+      })),
+      ...registeredEvents.map((e: any) => ({
+        action: `Registered for "${e.title}"`, time: fmt(e.date), type: 'Event', color: '#8b5cf6',
+        ts: new Date(e.date).getTime(),
+      })),
+      ...(user.achievements || []).map((a: any) => ({
+        action: `Earned achievement "${a.title}"`, time: a.year || '', type: 'Achievement', color: '#f59e0b',
+        ts: 0,
+      })),
+    ].sort((x, y) => y.ts - x.ts).slice(0, 6);
 
     return NextResponse.json({
       success: true,
-      user,
+      user: { ...user, rollNumber: (user as any).rollNumber || (user as any).rollNo || '' },
       stats: {
         blogsWritten: personalBlogsCount,
         approvedEvents: approvedEventsCount,
         resourcesUploaded: personalResourcesCount,
         achievementsCount: user.achievements?.length || 0,
         skillsCount: user.skills?.length || 0,
-        profileViews: 142 // Static telemetry counter mockup placeholder
+        profileViews: 0
       },
       timeline: activeTimeline,
       blogs: latestBlogs,

@@ -2,62 +2,15 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import {FaGithub, FaLinkedin, FaTwitter, FaInstagram } from 'react-icons/fa'
+import { useRouter } from 'next/navigation';
+import { FaGithub, FaLinkedin, FaTwitter, FaInstagram } from 'react-icons/fa';
 import {
-  X, Save, Upload, User, Globe, Phone, MapPin, BookOpen, Briefcase, Code2, Languages, GraduationCap,
-  Bell, Lock, Palette, ChevronRight, AlertCircle, CheckCircle2,
-  Loader2, Info, Plus, Trash2, Eye, Download, Edit3, Shield,
+  ArrowLeft, Save, Upload, User as UserIcon, Globe, Code2, GraduationCap,
+  Bell, Lock, AlertCircle, CheckCircle2, Loader2, Plus, Eye, Shield, X,
+  RefreshCw,
 } from 'lucide-react';
 
-// ─── Types ───────────────────────────────────────────────────────────────────
-
-interface User {
-  _id: string;
-  name: string;
-  email: string;
-  rollNumber?: string;
-  role?: string;
-  team?: string;
-  designation?: string;
-  memberId?: string;
-  branch?: string;
-  bio?: string;
-  phone?: string;
-  location?: string;
-  portfolio?: string;
-  profileImage?: string;
-  skills?: string[];
-  interests?: string[];
-  languages?: string[];
-  currentSemester?: number;
-  cgpa?: string;
-  availability?: string;
-  preferredDomains?: string[];
-  openToCollaboration?: boolean;
-  resume?: string;
-  socialLinks?: {
-    github?: string;
-    linkedin?: string;
-    twitter?: string;
-    instagram?: string;
-  };
-  preferences?: {
-    theme?: string;
-    emailNotifications?: boolean;
-    coverBanner?: string;
-    openToCollaboration?: boolean;
-  };
-  isVerified?: boolean;
-  createdAt?: string;
-}
-
-interface ProfileDrawerProps {
-  user: User | null;
-  onClose: () => void;
-  onSaveSuccess: () => void;
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Sub-components (ported from the existing edit form) ──────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -131,8 +84,7 @@ function Toggle({
       </div>
       <button
         onClick={() => onChange(!value)}
-        className={`relative w-10 h-5.5 rounded-full transition-all duration-300 flex-shrink-0
-          ${value ? 'bg-indigo-500' : 'bg-white/10'}`}
+        className={`relative rounded-full transition-all duration-300 flex-shrink-0 ${value ? 'bg-indigo-500' : 'bg-white/10'}`}
         style={{ height: '22px', width: '40px' }}
       >
         <motion.div
@@ -151,17 +103,11 @@ function TagInput({
   label: string; tags: string[]; onChange: (tags: string[]) => void; placeholder?: string;
 }) {
   const [input, setInput] = useState('');
-
   const add = () => {
     const v = input.trim();
-    if (v && !tags.includes(v) && tags.length < 20) {
-      onChange([...tags, v]);
-      setInput('');
-    }
+    if (v && !tags.includes(v) && tags.length < 20) { onChange([...tags, v]); setInput(''); }
   };
-
   const remove = (tag: string) => onChange(tags.filter(t => t !== tag));
-
   return (
     <div className="space-y-1.5">
       <label className="text-[11px] font-bold text-slate-400">{label}</label>
@@ -193,40 +139,22 @@ function TagInput({
   );
 }
 
-// ─── Completion Ring ──────────────────────────────────────────────────────────
-
 function CompletionRing({ form }: { form: any }) {
   const checks = [
-    !!form.name,
-    !!form.bio,
-    !!form.profileImage,
-    !!form.phone,
-    !!form.portfolio,
-    !!form.github,
-    !!form.linkedin,
-    (form.skills?.length || 0) > 0,
-    !!form.location,
-    !!form.resume,
+    !!form.name, !!form.bio, !!form.profileImage, !!form.phone,
+    !!form.portfolio, !!form.github, !!form.linkedin,
+    (form.skills?.length || 0) > 0, !!form.location, !!form.resume,
   ];
-  const filled = checks.filter(Boolean).length;
-  const pct = Math.round((filled / checks.length) * 100);
+  const pct = Math.round((checks.filter(Boolean).length / checks.length) * 100);
   const r = 22;
   const circ = 2 * Math.PI * r;
   const offset = circ - (pct / 100) * circ;
-
   const missing = [
-    !form.name && 'Full Name',
-    !form.bio && 'Bio',
-    !form.profileImage && 'Profile Photo',
-    !form.phone && 'Phone',
-    !form.portfolio && 'Portfolio',
-    !form.github && 'GitHub',
-    (form.skills?.length || 0) === 0 && 'Skills',
-    !form.resume && 'Resume',
+    !form.name && 'Full Name', !form.bio && 'Bio', !form.profileImage && 'Profile Photo',
+    !form.phone && 'Phone', !form.portfolio && 'Portfolio', !form.github && 'GitHub',
+    (form.skills?.length || 0) === 0 && 'Skills', !form.resume && 'Resume',
   ].filter(Boolean) as string[];
-
   const color = pct >= 80 ? '#10b981' : pct >= 50 ? '#f59e0b' : '#ef4444';
-
   return (
     <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 flex gap-4 items-start">
       <div className="relative shrink-0">
@@ -259,36 +187,17 @@ function CompletionRing({ form }: { form: any }) {
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Edit Profile Page ────────────────────────────────────────────────────────
 
-export default function ProfileDrawer({ user, onClose, onSaveSuccess }: ProfileDrawerProps) {
-  const [form, setForm] = useState({
-    name: user?.name || '',
-    bio: user?.bio || '',
-    phone: user?.phone || '',
-    location: user?.location || '',
-    portfolio: user?.portfolio || '',
-    github: user?.socialLinks?.github || '',
-    linkedin: user?.socialLinks?.linkedin || '',
-    twitter: user?.socialLinks?.twitter || '',
-    instagram: user?.socialLinks?.instagram || '',
-    skills: user?.skills || [] as string[],
-    interests: user?.interests || [] as string[],
-    languages: user?.languages || [] as string[],
-    preferredDomains: user?.preferredDomains || [] as string[],
-    currentSemester: String(user?.currentSemester || ''),
-    cgpa: user?.cgpa || '',
-    availability: user?.availability || 'available',
-    openToCollaboration: user?.preferences?.openToCollaboration ?? user?.openToCollaboration ?? false,
-    profileImage: user?.profileImage || '',
-    coverBanner: user?.preferences?.coverBanner || '',
-    resume: user?.resume || '',
-    theme: user?.preferences?.theme || 'dark',
-    emailNotifications: user?.preferences?.emailNotifications ?? true,
-  });
+export default function EditProfilePage() {
+  const router = useRouter();
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [form, setForm] = useState<any>(null);
 
   const [saving, setSaving] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'success' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
   const [activeSection, setActiveSection] = useState('identity');
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -296,41 +205,93 @@ export default function ProfileDrawer({ user, onClose, onSaveSuccess }: ProfileD
   const profileImgRef = useRef<HTMLInputElement>(null);
   const bannerImgRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    fetch('/api/user/member-profile')
+      .then(r => r.json())
+      .then(d => {
+        if (d.success) {
+          const u = d.user;
+          setUser(u);
+          setForm({
+            name: u?.name || '',
+            bio: u?.bio || '',
+            phone: u?.phone || '',
+            location: u?.location || '',
+            portfolio: u?.portfolio || '',
+            github: u?.socialLinks?.github || '',
+            linkedin: u?.socialLinks?.linkedin || '',
+            twitter: u?.socialLinks?.twitter || '',
+            instagram: u?.socialLinks?.instagram || '',
+            skills: u?.skills || [],
+            interests: u?.interests || [],
+            languages: u?.languages || [],
+            preferredDomains: u?.preferredDomains || [],
+            currentSemester: String(u?.currentSemester || ''),
+            cgpa: u?.cgpa || '',
+            availability: u?.availability || 'available',
+            openToCollaboration: u?.preferences?.openToCollaboration ?? u?.openToCollaboration ?? false,
+            profileImage: u?.profileImage || '',
+            coverBanner: u?.preferences?.coverBanner || '',
+            resume: u?.resume || '',
+            theme: u?.preferences?.theme || 'dark',
+            emailNotifications: u?.preferences?.emailNotifications ?? true,
+          });
+        }
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
   const set = useCallback((key: string, value: any) => {
-    setForm(f => ({ ...f, [key]: value }));
+    setForm((f: any) => ({ ...f, [key]: value }));
     setHasChanges(true);
     setSaveState('idle');
   }, []);
 
   const handleImageUpload = (file: File, field: 'profileImage' | 'coverBanner') => {
+    if (!file.type.startsWith('image/')) {
+      setErrorMsg('Please choose a valid image file.'); setSaveState('error'); return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setErrorMsg('Image is too large. Max size is 2MB.'); setSaveState('error'); return;
+    }
     const reader = new FileReader();
     reader.onload = e => {
       const url = e.target?.result as string;
-      if (field === 'profileImage') setImagePreview(url);
-      else setBannerPreview(url);
+      if (field === 'profileImage') setImagePreview(url); else setBannerPreview(url);
       set(field, url);
     };
     reader.readAsDataURL(file);
   };
 
   const handleSave = async () => {
+    if (!form.name.trim()) {
+      setErrorMsg('Full name is required.'); setSaveState('error'); setActiveSection('identity'); return;
+    }
+    setErrorMsg('');
     setSaving(true);
     try {
       const res = await fetch('/api/user/member-profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: form.name,
+          name: form.name.trim(),
           bio: form.bio,
           phone: form.phone,
           location: form.location,
           profileImage: form.profileImage,
           portfolio: form.portfolio,
+          resume: form.resume,
+          availability: form.availability,
+          currentSemester: form.currentSemester,
+          cgpa: form.cgpa,
           github: form.github,
           linkedin: form.linkedin,
           twitter: form.twitter,
           instagram: form.instagram,
           skills: form.skills,
+          interests: form.interests,
+          languages: form.languages,
+          preferredDomains: form.preferredDomains,
           theme: form.theme,
           emailNotifications: form.emailNotifications,
           openToCollaboration: form.openToCollaboration,
@@ -341,112 +302,90 @@ export default function ProfileDrawer({ user, onClose, onSaveSuccess }: ProfileD
       if (data.success) {
         setSaveState('success');
         setHasChanges(false);
-        onSaveSuccess();
-        setTimeout(() => setSaveState('idle'), 3000);
+        setTimeout(() => { router.push('/dashboard/profile'); router.refresh(); }, 700);
       } else {
+        setErrorMsg(data.message || 'Failed to save. Try again.');
         setSaveState('error');
       }
     } catch {
+      setErrorMsg('Failed to save. Try again.');
       setSaveState('error');
     } finally {
       setSaving(false);
     }
   };
 
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+  if (loading || !form) return (
+    <div className="min-h-screen bg-[#080c14] flex items-center justify-center gap-3 text-xs font-mono text-slate-500">
+      <RefreshCw className="w-4 h-4 animate-spin text-indigo-500" /> Loading editor...
+    </div>
+  );
 
   const navSections = [
-    { id: 'identity', label: 'Identity', icon: User },
+    { id: 'identity', label: 'Identity', icon: UserIcon },
     { id: 'social', label: 'Social', icon: Globe },
     { id: 'skills', label: 'Skills', icon: Code2 },
     { id: 'academic', label: 'Academic', icon: GraduationCap },
     { id: 'settings', label: 'Settings', icon: Bell },
   ];
 
-  const initials = (user?.name || 'EA').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const initials = (user?.name || 'U').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
 
   return (
-    <>
-      {/* Backdrop */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-40"
-      />
+    <div className="min-h-screen bg-[#080c14] text-white">
+      <div className="max-w-3xl mx-auto px-4 md:px-6 py-6">
 
-      {/* Drawer */}
-      <motion.div
-        initial={{ x: '100%' }}
-        animate={{ x: 0 }}
-        exit={{ x: '100%' }}
-        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-        className="fixed right-0 top-0 bottom-0 z-50 flex flex-col bg-[#080c14] border-l border-white/[0.06] shadow-2xl"
-        style={{ width: 'clamp(100vw, 420px, 420px)', maxWidth: '100vw' }}
-      >
         {/* Header */}
-        <div className="shrink-0 px-5 pt-5 pb-4 border-b border-white/[0.06]">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-indigo-500/20 flex items-center justify-center">
-                <Edit3 className="w-3.5 h-3.5 text-indigo-400" />
-              </div>
-              <h2 className="text-sm font-black text-white">Edit Profile</h2>
-              {hasChanges && (
-                <motion.span
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-500/20 border border-amber-500/30 text-amber-400 uppercase tracking-wide"
-                >
-                  Unsaved
-                </motion.span>
-              )}
-            </div>
-            <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/[0.06] text-slate-500 hover:text-white transition-all">
-              <X className="w-4 h-4" />
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push('/dashboard/profile')}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs font-bold text-white hover:bg-white/[0.08] transition-all"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" /> Profile
             </button>
-          </div>
-
-          {/* Completion Ring */}
-          <CompletionRing form={form} />
-
-          {/* Nav Pills */}
-          <div className="flex gap-1 mt-4 overflow-x-auto pb-0.5 scrollbar-none">
-            {navSections.map(s => (
-              <button
-                key={s.id}
-                onClick={() => setActiveSection(s.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide whitespace-nowrap transition-all flex-shrink-0
-                  ${activeSection === s.id
-                    ? 'bg-indigo-500/20 border border-indigo-500/30 text-indigo-400'
-                    : 'text-slate-500 hover:text-slate-300 hover:bg-white/[0.04]'
-                  }`}
-              >
-                <s.icon className="w-3 h-3" />
-                {s.label}
-              </button>
-            ))}
+            <h1 className="text-sm font-black text-white">Edit Profile</h1>
+            {hasChanges && (
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-amber-500/20 border border-amber-500/30 text-amber-400 uppercase tracking-wide">
+                Unsaved
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6 scrollbar-none">
+        {/* Completion Ring */}
+        <div className="mb-4">
+          <CompletionRing form={form} />
+        </div>
+
+        {/* Nav Pills */}
+        <div className="flex gap-1 mb-6 overflow-x-auto pb-0.5 scrollbar-none">
+          {navSections.map(s => (
+            <button
+              key={s.id}
+              onClick={() => setActiveSection(s.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wide whitespace-nowrap transition-all flex-shrink-0
+                ${activeSection === s.id
+                  ? 'bg-indigo-500/20 border border-indigo-500/30 text-indigo-400'
+                  : 'text-slate-500 hover:text-slate-300 hover:bg-white/[0.04]'
+                }`}
+            >
+              <s.icon className="w-3 h-3" /> {s.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Body */}
+        <div className="space-y-6">
           <AnimatePresence mode="wait">
             {/* ── IDENTITY ── */}
             {activeSection === 'identity' && (
               <motion.div key="identity" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="space-y-5">
 
-                {/* Cover Banner Upload */}
                 <div>
                   <SectionLabel>Cover Banner</SectionLabel>
                   <div
-                    className="relative h-24 rounded-2xl overflow-hidden cursor-pointer group border border-white/[0.06] hover:border-indigo-500/30 transition-all"
+                    className="relative h-28 rounded-2xl overflow-hidden cursor-pointer group border border-white/[0.06] hover:border-indigo-500/30 transition-all"
                     onClick={() => bannerImgRef.current?.click()}
                     style={{
                       background: bannerPreview || form.coverBanner
@@ -456,8 +395,7 @@ export default function ProfileDrawer({ user, onClose, onSaveSuccess }: ProfileD
                   >
                     <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition-all flex items-center justify-center">
                       <div className="flex items-center gap-2 text-xs text-white/70 group-hover:text-white transition-all">
-                        <Upload className="w-4 h-4" />
-                        <span className="font-bold">Upload Cover</span>
+                        <Upload className="w-4 h-4" /> <span className="font-bold">Upload Cover</span>
                       </div>
                     </div>
                     <input ref={bannerImgRef} type="file" accept="image/*" className="hidden"
@@ -465,7 +403,6 @@ export default function ProfileDrawer({ user, onClose, onSaveSuccess }: ProfileD
                   </div>
                 </div>
 
-                {/* Profile Image Upload */}
                 <div>
                   <SectionLabel>Profile Photo</SectionLabel>
                   <div className="flex items-center gap-4">
@@ -492,13 +429,12 @@ export default function ProfileDrawer({ user, onClose, onSaveSuccess }: ProfileD
                   </div>
                 </div>
 
-                {/* Admin-controlled fields */}
                 <div>
                   <SectionLabel>Managed by Admin</SectionLabel>
                   <div className="p-3 rounded-xl border border-amber-500/10 bg-amber-500/[0.03] flex items-start gap-2 mb-3">
                     <Shield className="w-3.5 h-3.5 text-amber-500/70 mt-0.5 shrink-0" />
                     <p className="text-[10px] text-slate-500 leading-relaxed">
-                      Role, Designation, Team, Roll Number, Email & Branch are managed by admins and cannot be changed here.
+                      Role, Designation, Team, Roll Number, Email, Member ID & Joined Date are managed by admins and cannot be changed here.
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
@@ -508,6 +444,7 @@ export default function ProfileDrawer({ user, onClose, onSaveSuccess }: ProfileD
                     <Field label="Team" value={user?.team || ''} disabled />
                     <Field label="Designation" value={user?.designation || ''} disabled />
                     <Field label="Member ID" value={user?.memberId || user?._id?.slice(-6).toUpperCase() || ''} disabled />
+                    <Field label="Joined Date" value={user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : ''} disabled />
                   </div>
                 </div>
 
@@ -515,7 +452,7 @@ export default function ProfileDrawer({ user, onClose, onSaveSuccess }: ProfileD
                   <SectionLabel>Personal Info</SectionLabel>
                   <div className="space-y-3">
                     <Field label="Full Name" value={form.name} onChange={v => set('name', v)} placeholder="Your full name" />
-                    <TextareaField label="Bio" value={form.bio} onChange={v => set('bio', v)} placeholder="Tell the club about yourself — your background, what you build, what drives you..." rows={4} />
+                    <TextareaField label="Bio" value={form.bio} onChange={v => set('bio', v)} placeholder="Tell the club about yourself..." rows={4} />
                     <div className="grid grid-cols-2 gap-3">
                       <Field label="Phone" value={form.phone} onChange={v => set('phone', v)} placeholder="+91 9876543210" type="tel" />
                       <Field label="Location" value={form.location} onChange={v => set('location', v)} placeholder="City, State" />
@@ -603,7 +540,6 @@ export default function ProfileDrawer({ user, onClose, onSaveSuccess }: ProfileD
                 <TagInput label="Interests" tags={form.interests} onChange={v => set('interests', v)} placeholder="e.g. Open Source, AI, Web3" />
                 <TagInput label="Languages" tags={form.languages} onChange={v => set('languages', v)} placeholder="e.g. English, Hindi" />
                 <TagInput label="Preferred Domains" tags={form.preferredDomains} onChange={v => set('preferredDomains', v)} placeholder="e.g. Frontend, Backend, ML" />
-
                 <div>
                   <SectionLabel>Collaboration</SectionLabel>
                   <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 divide-y divide-white/[0.04]">
@@ -646,14 +582,12 @@ export default function ProfileDrawer({ user, onClose, onSaveSuccess }: ProfileD
                     ))}
                   </div>
                 </div>
-
                 <div>
                   <SectionLabel>Notifications & Privacy</SectionLabel>
                   <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 divide-y divide-white/[0.04]">
                     <Toggle label="Email Notifications" description="Receive updates about events, blogs and club news" value={form.emailNotifications} onChange={v => set('emailNotifications', v)} />
                   </div>
                 </div>
-
                 <div>
                   <SectionLabel>Verification Status</SectionLabel>
                   <div className={`flex items-center gap-3 p-3 rounded-xl border ${user?.isVerified ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}>
@@ -669,22 +603,19 @@ export default function ProfileDrawer({ user, onClose, onSaveSuccess }: ProfileD
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 px-5 py-4 border-t border-white/[0.06] space-y-2">
+        <div className="mt-8 pt-5 border-t border-white/[0.06] space-y-2">
           {saveState === 'success' && (
-            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-2 text-emerald-400 text-xs font-bold p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+            <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
               <CheckCircle2 className="w-3.5 h-3.5" /> Profile saved successfully
-            </motion.div>
+            </div>
           )}
           {saveState === 'error' && (
-            <motion.div initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-              className="flex items-center gap-2 text-red-400 text-xs font-bold p-2.5 rounded-xl bg-red-500/10 border border-red-500/20">
-              <AlertCircle className="w-3.5 h-3.5" /> Failed to save. Try again.
-            </motion.div>
+            <div className="flex items-center gap-2 text-red-400 text-xs font-bold p-2.5 rounded-xl bg-red-500/10 border border-red-500/20">
+              <AlertCircle className="w-3.5 h-3.5" /> {errorMsg || 'Failed to save. Try again.'}
+            </div>
           )}
-
-          <div className="flex gap-2">
-            <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-xs font-black text-slate-400 border border-white/[0.06] hover:bg-white/[0.04] transition-all">
+          <div className="flex gap-2 max-w-md ml-auto">
+            <button onClick={() => router.push('/dashboard/profile')} className="flex-1 py-2.5 rounded-xl text-xs font-black text-slate-400 border border-white/[0.06] hover:bg-white/[0.04] transition-all">
               Cancel
             </button>
             <button
@@ -696,12 +627,11 @@ export default function ProfileDrawer({ user, onClose, onSaveSuccess }: ProfileD
                   : 'bg-indigo-500 hover:bg-indigo-400 text-white shadow-lg shadow-indigo-500/20'
                 }`}
             >
-              {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</>
-                : <><Save className="w-3.5 h-3.5" /> Save Changes</>}
+              {saving ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving...</> : <><Save className="w-3.5 h-3.5" /> Save Changes</>}
             </button>
           </div>
         </div>
-      </motion.div>
-    </>
+      </div>
+    </div>
   );
 }

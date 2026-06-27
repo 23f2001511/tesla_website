@@ -9,7 +9,7 @@ import {
   ArrowLeft, CheckCircle2, Copy, Share2, Globe,FileText, Calendar, BookOpen, Trophy, Eye,
   Star, Code2, MapPin, Phone, Mail, Briefcase, GraduationCap,
   Award, Users, ExternalLink, Download, Shield, Clock, Layers,
-  RefreshCw, AlertCircle,
+  RefreshCw, AlertCircle, Edit, Hash,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -84,24 +84,26 @@ function SocialButton({
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function MemberProfilePage() {
+export function ProfileContent({ userId }: { userId?: string }) {
   const router = useRouter();
   const [data, setData] = useState<ProfileData | null>(null);
+  const [isOwn, setIsOwn] = useState(!userId);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'activity' | 'blogs'>('overview');
 
   useEffect(() => {
-    fetch('/api/user/member-profile')
+    const url = userId ? `/api/user/${userId}` : '/api/user/member-profile';
+    fetch(url)
       .then(r => r.json())
       .then(d => {
-        if (d.success) setData(d);
+        if (d.success) { setData(d); setIsOwn(d.isOwn ?? !userId); }
         else setError(true);
       })
       .catch(() => setError(true))
       .finally(() => setLoading(false));
-  }, []);
+  }, [userId]);
 
   const handleCopy = () => {
     navigator.clipboard.writeText(window.location.href);
@@ -195,9 +197,15 @@ export default function MemberProfilePage() {
             {copied ? <><CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Link</>}
           </motion.button>
           <motion.button onClick={handleShare} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-500/80 border border-indigo-400/30 text-xs font-bold text-white backdrop-blur-md hover:bg-indigo-500 transition-all">
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-black/40 border border-white/10 text-xs font-bold text-white backdrop-blur-md hover:bg-black/60 transition-all">
             <Share2 className="w-3.5 h-3.5" /> Share
           </motion.button>
+          {isOwn && (
+            <motion.button onClick={() => router.push('/dashboard/profile/edit')} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-500/80 border border-indigo-400/30 text-xs font-bold text-white backdrop-blur-md hover:bg-indigo-500 transition-all">
+              <Edit className="w-3.5 h-3.5" /> Edit Profile
+            </motion.button>
+          )}
         </div>
       </div>
 
@@ -320,6 +328,7 @@ export default function MemberProfilePage() {
             <div className="p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02]">
               <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600 mb-2">Details</p>
               <InfoRow icon={Mail} label="Email" value={user?.email} mono />
+              <InfoRow icon={Hash} label="Member ID" value={user?.memberId || (user?._id ? user._id.slice(-6).toUpperCase() : '')} mono />
               <InfoRow icon={Phone} label="Phone" value={user?.phone} mono />
               <InfoRow icon={GraduationCap} label="Branch" value={user?.branch} />
               <InfoRow icon={Briefcase} label="Roll Number" value={user?.rollNumber} mono />
@@ -508,4 +517,9 @@ export default function MemberProfilePage() {
       </div>
     </div>
   );
+}
+
+// Self profile route — renders the shared profile view with edit access.
+export default function MemberProfilePage() {
+  return <ProfileContent />;
 }

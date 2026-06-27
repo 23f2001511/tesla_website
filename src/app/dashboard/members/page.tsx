@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-import ProfileDrawer from '@/components/profile/ProfileDrawer';
+import ProfileDrawer from '@/components/profile/ProfileForm';
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
@@ -278,7 +278,7 @@ export default function MembersDashboardWorkspace() {
     },
     {
       icon: Eye, label: 'Profile Views',
-      value: stats?.profileViews || 241, accent: '#ec4899',
+      value: stats?.profileViews ?? 0, accent: '#ec4899',
       sub: 'Total impressions',
     },
   ];
@@ -364,7 +364,7 @@ export default function MembersDashboardWorkspace() {
                 <div className="flex items-center gap-2 text-xs font-bold shrink-0">
                   <motion.button
                     whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                    onClick={() => router.push('/dashboard/members/profile')}
+                    onClick={() => router.push('/dashboard/profile')}
                     className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.08]
                       hover:bg-white/[0.08] hover:border-white/[0.14] text-white transition-all"
                   >
@@ -442,14 +442,6 @@ export default function MembersDashboardWorkspace() {
                 <QuickAction
                   icon={Trophy} label="Achievements" sub="View your milestones"
                   accent="#f59e0b" onClick={() => router.push('/dashboard/achievements')}
-                />
-                <QuickAction
-                  icon={Eye} label="View My Profile" sub="See public profile page"
-                  accent="#ec4899" onClick={() => router.push('/dashboard/members/profile')}
-                />
-                <QuickAction
-                  icon={Edit} label="Edit Profile" sub="Update your info"
-                  accent="#10b981" onClick={() => setOpenDrawer(true)}
                 />
               </div>
             </GlassCard>
