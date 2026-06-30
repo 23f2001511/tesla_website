@@ -69,13 +69,15 @@ export default function DashboardResourcesPage() {
   const [editError, setEditError] = useState('');
 
   // ── Permissions ──
-  const isFullAccess = role === 'Admin' || role === 'President';
-  const isTeamLeader = role === 'TeamLeader';
-  const canUpload = isFullAccess || isTeamLeader;
+  // Admin/President/OfficeBearer have full access; TeamLeader/TeamMember may upload
+  // and manage only their own files; Alumni (and others) may only view/download.
+  const isFullAccess = role === 'Admin' || role === 'President' || role === 'OfficeBearer';
+  const isContributor = role === 'TeamLeader' || role === 'TeamMember';
+  const canUpload = isFullAccess || isContributor;
   const canManageFile = useCallback(
     (file: ResourceFile) =>
-      isFullAccess || (isTeamLeader && !!file.uploadedBy && String(file.uploadedBy) === String(myId)),
-    [isFullAccess, isTeamLeader, myId]
+      isFullAccess || (isContributor && !!file.uploadedBy && String(file.uploadedBy) === String(myId)),
+    [isFullAccess, isContributor, myId]
   );
 
   useEffect(() => {
@@ -141,10 +143,11 @@ export default function DashboardResourcesPage() {
   };
 
   const handleAddDepartment = () => {
-    if (!newDeptName.trim()) return;
-    if (departments.includes(newDeptName.trim())) { alert('Department already exists.'); return; }
-    setDepartments([...departments, newDeptName.trim()]);
-    setUploadForm((f) => ({ ...f, department: newDeptName.trim() }));
+    const trimmed = newDeptName.trim();
+    if (!trimmed) return;
+    if (departments.some((d) => d.toLowerCase() === trimmed.toLowerCase())) { alert('Department already exists.'); return; }
+    setDepartments([...departments, trimmed]);
+    setUploadForm((f) => ({ ...f, department: trimmed }));
     setNewDeptName('');
     setShowDeptModal(false);
   };

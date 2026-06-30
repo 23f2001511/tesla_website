@@ -55,52 +55,56 @@ export async function GET(request: NextRequest) {
     });
 
     const formatProposal = (e: any) => ({
-      id:           e._id.toString(),
-      title:        e.title,
-      description:  e.description,
-      date:         new Date(e.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-      venue:        e.venue,
-      category:     e.category,
-      status:       e.approvalStatus,
-      submittedAt:  e.submittedAt
-        ? new Date(e.submittedAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-        : new Date(e.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-      requestNote:  e.requestNote  || '',
+      id: e._id.toString(),
+      title: e.title,
+      description: e.description,
+      date: new Date(e.date).toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      }),
+      venue: e.venue,
+      category: e.category,
+
+      // ADD THESE
+      poster: e.poster || '',
+      speaker: e.speaker || '',
+      isFeatured: e.isFeatured || false,
+
+      status: e.approvalStatus,
+
+      submittedAt: e.submittedAt
+        ? new Date(e.submittedAt).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          })
+        : new Date(e.createdAt).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+          }),
+
+      requestNote: e.requestNote || '',
       adminRemarks: e.adminRemarks || '',
     });
 
     // Next upcoming event
     const nextEvent = upcoming[0] ? formatEvent(upcoming[0]) : null;
 
-    // Certificate list from completed events the user attended
-    const certificates = completed
-      .filter((e: any) => e.registeredUsers?.some((id: any) => id.toString() === userId))
-      .map((e: any, idx: number) => ({
-        id:       e._id.toString(),
-        event:    e.title,
-        date:     new Date(e.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-        certId:   `TESLA-${new Date(e.date).getFullYear()}-${String(idx + 1).padStart(3, '0')}`,
-        verified: true,
-        gradient: idx % 2 === 0 ? 'from-violet-600 to-purple-700' : 'from-emerald-500 to-teal-600',
-        icon:     '🏆',
-      }));
-
     return NextResponse.json({
       success: true,
       stats: {
-        totalRegistered:   registeredCount,
-        upcomingCount:     upcoming.length,
-        completedCount:    completed.length,
-        certificatesCount: certificates.length,
+        totalRegistered: registeredCount,
+        upcomingCount:   upcoming.length,
+        completedCount:  completed.length,
       },
       nextEvent,
       upcoming:    upcoming.map(formatEvent),
       completed:   completed.map((e: any) => ({
         ...formatEvent(e),
         attended: e.registeredUsers?.some((id: any) => id.toString() === userId) || false,
-        hasCert:  e.registeredUsers?.some((id: any) => id.toString() === userId) || false,
       })),
-      certificates,
       myProposals: myProposals.map(formatProposal),
     });
   } catch (error: any) {
@@ -117,7 +121,7 @@ export async function POST(request: NextRequest) {
     const userId = payload!.userId;
 
     const body = await request.json();
-    const { title, description, date, venue, category, speaker, seatLimit, requestNote } = body;
+    const { title, description, date, venue, category, speaker, poster, seatLimit, requestNote } = body;
 
     if (!title || !description || !date || !venue || !category) {
       return NextResponse.json(
@@ -134,6 +138,7 @@ export async function POST(request: NextRequest) {
       venue,
       category,
       speaker:        speaker   || '',
+      poster:         poster    || '',
       seatLimit:      seatLimit ? Number(seatLimit) : undefined,
       isFeatured:     false,
       approvalStatus: 'pending',

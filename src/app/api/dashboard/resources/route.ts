@@ -5,8 +5,8 @@ import { requireAuth } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-// Admin/President bypass ownership; everyone else (TeamLeader) manages only their own files.
-const FULL_ACCESS = ['Admin', 'President'];
+// Admin/President/OfficeBearer bypass ownership; everyone else (TeamLeader/TeamMember) manages only their own files.
+const FULL_ACCESS = ['Admin', 'President', 'OfficeBearer'];
 
 function ownsOrFullAccess(file: any, userId: string, role: string) {
   if (FULL_ACCESS.includes(role)) return true;

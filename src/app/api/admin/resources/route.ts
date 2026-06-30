@@ -80,8 +80,8 @@ export async function GET(request: NextRequest) {
 // ─── POST: Document Upload Entry Ingestion Pipeline ──────────────────────────
 export async function POST(request: NextRequest) {
   try {
-    // Team Leaders may upload too; ownership is stamped so they can manage only their own files.
-    const { payload, response: authError } = await requireRole([...CONTENT_MANAGERS, 'TeamLeader']);
+    // Team Leaders & Team Members may upload too; ownership is stamped so they can manage only their own files.
+    const { payload, response: authError } = await requireRole([...CONTENT_MANAGERS, 'TeamLeader', 'TeamMember']);
     if (authError) return authError;
 
     await connectDB();
