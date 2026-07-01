@@ -4,66 +4,122 @@ import { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Search, Edit2, Trash2, CheckCircle, XCircle, UserPlus, Loader2,
   Crown, ShieldCheck, Mail, Briefcase, ChevronDown, GraduationCap,
-  Layers, ShieldAlert, Award, ArrowUpCircle, X, Check, Lock, Power,
-  Users, FolderPlus, Zap,
+  ShieldAlert, Award, ArrowUpCircle, X, Check, Lock, Power,
+  Users, UserCheck, FolderPlus, ArrowLeft, ImageIcon, Calendar,
+  FileText, FolderOpen, Settings2, Building2, Shield,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { TL_PERMISSIONS } from '@/lib/permissions';
 
-// Roles permitted to promote/demote/delete/edit members — mirrors the API guard.
-const MEMBER_MANAGERS = ['Admin', 'President'];
+// ─── Role config ─────────────────────────────────────────────────────────────
+const ALL_ROLES = ['Admin', 'PI', 'President', 'OfficeBearer', 'TeamLeader', 'TeamMember', 'Alumni'];
+// PI is intentionally excluded — nobody can be promoted to PI from the dashboard.
+const PROMOTABLE_ROLES = ['Admin', 'President', 'OfficeBearer', 'TeamLeader', 'TeamMember', 'Alumni'];
 
-// ── Replace with your real auth/session hook. Hardcoded here as a clear placeholder. ──
-function useCurrentUser(): { id: string; role: string } {
-  // e.g. const { data } = useSession(); return { id: data.user.id, role: data.user.role };
-  return { id: 'placeholder-current-user-id', role: 'Admin' };
-}
-
-const ROLE_ORDER = ['Admin', 'PI', 'President', 'OfficeBearer', 'TeamLeader', 'TeamMember', 'Alumni'];
+// Roles allowed to add/edit/delete/toggle members, manage teams & permissions.
+const MEMBER_MANAGERS = ['Admin', 'President', 'OfficeBearer'];
+// Roles allowed to change another member's role (promote/demote).
+const ROLE_MANAGERS = ['Admin', 'President'];
 
 const ROLE_META: Record<string, { Icon: any; color: string }> = {
-  Admin:        { Icon: ShieldAlert, color: '#f87171' },
-  PI:           { Icon: ShieldAlert, color: '#a78bfa' },
-  President:    { Icon: Crown,       color: '#fbbf24' },
-  OfficeBearer: { Icon: ShieldCheck, color: '#60a5fa' },
-  TeamLeader:   { Icon: Award,       color: '#34d399' },
-  TeamMember:   { Icon: Award,       color: '#9ca3af' },
+  Admin:        { Icon: ShieldAlert,   color: '#f87171' },
+  PI:           { Icon: ShieldAlert,   color: '#a78bfa' },
+  President:    { Icon: Crown,         color: '#fbbf24' },
+  OfficeBearer: { Icon: ShieldCheck,   color: '#60a5fa' },
+  TeamLeader:   { Icon: Award,         color: '#34d399' },
+  TeamMember:   { Icon: Award,         color: '#9ca3af' },
   Alumni:       { Icon: GraduationCap, color: '#06b6d4' },
 };
 
-// ─── Category Groups (NEW) ──────────────────────────────────────────────────────
-// "Active Tesla Members" = the working club body (President, OfficeBearer, TeamLeader, TeamMember)
-// "PI" = institutional authority (PI + Admin, since Admin also handles the club)
-// "Alumni" = past members
-const CATEGORY_GROUPS: Record<string, { label: string; roles: string[]; Icon: any; color: string; gradient: string }> = {
-  tesla: {
-    label: 'Active Tesla Members',
-    roles: ['President', 'OfficeBearer', 'TeamLeader', 'TeamMember'],
-    Icon: Zap,
-    color: '#34d399',
-    gradient: 'from-emerald-500/15 to-emerald-500/0',
-  },
-  pi: {
-    label: 'PI',
-    roles: ['PI', 'Admin'],
-    Icon: ShieldAlert,
-    color: '#a78bfa',
-    gradient: 'from-violet-500/15 to-violet-500/0',
-  },
-  alumni: {
-    label: 'Alumni',
-    roles: ['Alumni'],
-    Icon: GraduationCap,
-    color: '#06b6d4',
-    gradient: 'from-cyan-500/15 to-cyan-500/0',
-  },
-};
+const UNASSIGNED_KEY = '__unassigned__';
 
-type CategoryKey = keyof typeof CATEGORY_GROUPS;
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function fmtDate(d?: string | null) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
 
-// ─── Promote Modal ──────────────────────────────────────────────────────────────
-function PromoteModal({
-  member, onClose, onDone, actor,
-}: { member: any; onClose: () => void; onDone: () => void; actor: { id: string; role: string } }) {
+// The team "bucket" a member belongs to (their team name, or the unassigned bucket).
+function teamKeyOf(m: any) {
+  const t = (m.team || '').trim();
+  return t ? t : UNASSIGNED_KEY;
+}
+
+// ─── Current user (real session via /api/user/me) ────────────────────────────
+function useCurrentUser() {
+  const [actor, setActor] = useState<{ id: string; role: string }>({ id: '', role: '' });
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/user/me');
+        const data = await res.json();
+        if (data.success && data.user) {
+          setActor({ id: data.user._id, role: data.user.role });
+        }
+      } catch {
+        /* leave actor empty → view-only */
+      } finally {
+        setReady(true);
+      }
+    })();
+  }, []);
+  return { actor, ready };
+}
+
+// ─── Avatar (profile image + graceful fallback) ──────────────────────────────
+function Avatar({ src, name, color = '#60a5fa', size = 40 }: { src?: string; name?: string; color?: string; size?: number }) {
+  return (
+    <div
+      className="rounded-lg overflow-hidden flex-shrink-0 flex items-center justify-center font-black shadow-inner"
+      style={{ width: size, height: size, background: `${color}20`, color, fontSize: size * 0.4 }}
+    >
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={name || 'member'} className="w-full h-full object-cover" />
+      ) : (
+        (name || 'U').charAt(0).toUpperCase()
+      )}
+    </div>
+  );
+}
+
+// ─── Status badge ─────────────────────────────────────────────────────────────
+function StatusBadge({ active }: { active: boolean }) {
+  return (
+    <span
+      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+        active
+          ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10'
+          : 'text-rose-400 border-rose-500/30 bg-rose-500/10'
+      }`}
+    >
+      <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+      {active ? 'Active' : 'Inactive'}
+    </span>
+  );
+}
+
+// ─── Modal shell ──────────────────────────────────────────────────────────────
+function ModalShell({ children, onClose, wide }: { children: React.ReactNode; onClose: () => void; wide?: boolean }) {
+  return (
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={onClose} />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 10 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+      >
+        <div className={`pointer-events-auto w-full ${wide ? 'max-w-md' : 'max-w-sm'} bg-zinc-950 border border-white/10 rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto`}>
+          {children}
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
+// ─── Promote / change role modal (no PI) ─────────────────────────────────────
+function PromoteModal({ member, onClose, onDone, actor }: { member: any; onClose: () => void; onDone: () => void; actor: { id: string; role: string } }) {
   const [role, setRole] = useState(member.role);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -75,10 +131,7 @@ function PromoteModal({
       const res = await fetch('/api/admin/members', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          actorRole: actor.role, actorId: actor.id,
-          id: member._id, action: 'updateRole', role,
-        }),
+        body: JSON.stringify({ actorRole: actor.role, actorId: actor.id, id: member._id, action: 'updateRole', role }),
       });
       const data = await res.json();
       if (!data.success) { setError(data.message || 'Update failed.'); return; }
@@ -88,70 +141,56 @@ function PromoteModal({
   };
 
   return (
-    <>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={onClose} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 10 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
-      >
-        <div className="pointer-events-auto w-full max-w-sm bg-zinc-950 border border-white/10 rounded-2xl p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <ArrowUpCircle className="w-4 h-4 text-blue-400" /> Change role
-            </h3>
-            <button onClick={onClose} className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center">
-              <X className="w-3.5 h-3.5 text-gray-400" />
-            </button>
-          </div>
+    <ModalShell onClose={onClose}>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+          <ArrowUpCircle className="w-4 h-4 text-blue-400" /> Change role
+        </h3>
+        <button onClick={onClose} className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center">
+          <X className="w-3.5 h-3.5 text-gray-400" />
+        </button>
+      </div>
 
-          <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-            <div className="w-9 h-9 rounded-lg bg-blue-500/15 text-blue-400 flex items-center justify-center font-bold text-xs flex-shrink-0">
-              {member.name?.charAt(0).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-100 truncate">{member.name}</p>
-              <p className="text-[11px] text-gray-500 truncate">Currently {member.role}</p>
-            </div>
-          </div>
-
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400">{error}</div>
-          )}
-
-          <div>
-            <label className="block text-[11px] text-gray-400 mb-1.5 font-medium">New role</label>
-            <div className="relative">
-              <select
-                className="w-full appearance-none bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-blue-500/50 pr-8"
-                value={role} onChange={e => setRole(e.target.value)}
-              >
-                {ROLE_ORDER.map(r => <option key={r} value={r} className="bg-zinc-950">{r}</option>)}
-              </select>
-              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-1">
-            <button onClick={onClose} className="text-xs text-gray-400 px-3 py-1.5 hover:text-gray-200">Cancel</button>
-            <button
-              onClick={submit} disabled={submitting}
-              className="flex items-center gap-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 px-4 py-1.5 rounded-xl text-white disabled:opacity-50 transition-colors"
-            >
-              {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              {submitting ? 'Saving…' : 'Confirm change'}
-            </button>
-          </div>
+      <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+        <Avatar src={member.profileImage} name={member.name} color={(ROLE_META[member.role] || ROLE_META.TeamMember).color} size={36} />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-100 truncate">{member.name}</p>
+          <p className="text-[11px] text-gray-500 truncate">Currently {member.role}</p>
         </div>
-      </motion.div>
-    </>
+      </div>
+
+      {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400">{error}</div>}
+
+      <div>
+        <label className="block text-[11px] text-gray-400 mb-1.5 font-medium">New role</label>
+        <div className="relative">
+          <select
+            className="w-full appearance-none bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white outline-none focus:border-blue-500/50 pr-8"
+            value={role} onChange={e => setRole(e.target.value)}
+          >
+            {PROMOTABLE_ROLES.map(r => <option key={r} value={r} className="bg-zinc-950">{r}</option>)}
+          </select>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+        </div>
+        <p className="text-[10px] text-gray-600 mt-1.5 flex items-center gap-1">
+          <Lock className="w-2.5 h-2.5" /> PI is a protected role and cannot be assigned here.
+        </p>
+      </div>
+
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onClose} className="text-xs text-gray-400 px-3 py-1.5 hover:text-gray-200">Cancel</button>
+        <button onClick={submit} disabled={submitting}
+          className="flex items-center gap-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 px-4 py-1.5 rounded-xl text-white disabled:opacity-50 transition-colors">
+          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          {submitting ? 'Saving…' : 'Confirm change'}
+        </button>
+      </div>
+    </ModalShell>
   );
 }
 
-// ─── Edit Modal ─────────────────────────────────────────────────────────────────
-function EditModal({
-  member, onClose, onDone, actor, teams,
-}: { member: any; onClose: () => void; onDone: () => void; actor: { id: string; role: string }; teams: string[] }) {
+// ─── Edit member modal ────────────────────────────────────────────────────────
+function EditMemberModal({ member, onClose, onDone, actor, teamNames }: { member: any; onClose: () => void; onDone: () => void; actor: { id: string; role: string }; teamNames: string[] }) {
   const [form, setForm] = useState({ name: member.name || '', team: member.team || '', designation: member.designation || '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -163,9 +202,87 @@ function EditModal({
       const res = await fetch('/api/admin/members', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actorRole: actor.role, actorId: actor.id, id: member._id, action: 'updateDetails', ...form }),
+      });
+      const data = await res.json();
+      if (!data.success) { setError(data.message || 'Update failed.'); return; }
+      onDone(); onClose();
+    } catch { setError('Could not reach the server. Try again.'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <ModalShell onClose={onClose}>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-white flex items-center gap-2"><Edit2 className="w-4 h-4 text-blue-400" /> Edit member</h3>
+        <button onClick={onClose} className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center"><X className="w-3.5 h-3.5 text-gray-400" /></button>
+      </div>
+
+      {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400">{error}</div>}
+
+      <div>
+        <label className="block text-[11px] text-gray-400 mb-1 font-medium">Name</label>
+        <input className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-blue-500"
+          value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+      </div>
+      <div>
+        <label className="block text-[11px] text-gray-400 mb-1 font-medium">Team</label>
+        <div className="relative">
+          <select className="w-full appearance-none p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-blue-500 pr-8"
+            value={form.team} onChange={e => setForm(f => ({ ...f, team: e.target.value }))}>
+            <option value="" className="bg-zinc-950">— None —</option>
+            {teamNames.map(t => <option key={t} value={t} className="bg-zinc-950">{t}</option>)}
+          </select>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+        </div>
+      </div>
+      <div>
+        <label className="block text-[11px] text-gray-400 mb-1 font-medium">Designation</label>
+        <input className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-blue-500"
+          placeholder="e.g. Web Dev Lead" value={form.designation} onChange={e => setForm(f => ({ ...f, designation: e.target.value }))} />
+      </div>
+
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onClose} className="text-xs text-gray-400 px-3 py-1.5 hover:text-gray-200">Cancel</button>
+        <button onClick={submit} disabled={submitting}
+          className="flex items-center gap-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 px-4 py-1.5 rounded-xl text-white disabled:opacity-50 transition-colors">
+          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          {submitting ? 'Saving…' : 'Save changes'}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+// ─── Team-Leader permission panel ─────────────────────────────────────────────
+// Grants / revokes the existing restricted features. Reuses PATCH setPermissions.
+function PermissionPanel({ member, onClose, onDone, actor }: { member: any; onClose: () => void; onDone: () => void; actor: { id: string; role: string } }) {
+  const initial = new Set<string>((member.permissions || []).filter((p: string) => TL_PERMISSIONS.some(t => t.key === p)));
+  const [granted, setGranted] = useState<Set<string>>(initial);
+  const [isLeader, setIsLeader] = useState(member.role === 'TeamLeader');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const toggle = (key: string) => {
+    setGranted(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const submit = async () => {
+    setSubmitting(true); setError('');
+    try {
+      const res = await fetch('/api/admin/members', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           actorRole: actor.role, actorId: actor.id,
-          id: member._id, action: 'updateDetails', ...form,
+          id: member._id, action: 'setPermissions',
+          permissions: isLeader ? Array.from(granted) : [],
+          makeLeader: isLeader && member.role !== 'TeamLeader',
+          revoke: !isLeader && member.role === 'TeamLeader',
         }),
       });
       const data = await res.json();
@@ -176,664 +293,846 @@ function EditModal({
   };
 
   return (
-    <>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={onClose} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 10 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
-      >
-        <div className="pointer-events-auto w-full max-w-sm bg-zinc-950 border border-white/10 rounded-2xl p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Edit2 className="w-4 h-4 text-blue-400" /> Edit member
-            </h3>
-            <button onClick={onClose} className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center">
-              <X className="w-3.5 h-3.5 text-gray-400" />
-            </button>
-          </div>
+    <ModalShell onClose={onClose} wide>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-white flex items-center gap-2"><Shield className="w-4 h-4 text-emerald-400" /> Team-Leader permissions</h3>
+        <button onClick={onClose} className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center"><X className="w-3.5 h-3.5 text-gray-400" /></button>
+      </div>
 
-          {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400">{error}</div>}
-
-          <div>
-            <label className="block text-[11px] text-gray-400 mb-1 font-medium">Name</label>
-            <input
-              className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-blue-500"
-              value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-            />
-          </div>
-          <div>
-            <label className="block text-[11px] text-gray-400 mb-1 font-medium">Team</label>
-            <div className="relative">
-              <select
-                className="w-full appearance-none p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-blue-500 pr-8"
-                value={form.team} onChange={e => setForm(f => ({ ...f, team: e.target.value }))}
-              >
-                <option value="" className="bg-zinc-950">— None —</option>
-                {teams.map(t => <option key={t} value={t} className="bg-zinc-950">{t}</option>)}
-              </select>
-              <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
-            </div>
-          </div>
-          <div>
-            <label className="block text-[11px] text-gray-400 mb-1 font-medium">Designation</label>
-            <input
-              className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-blue-500"
-              placeholder="e.g. Web Dev Lead"
-              value={form.designation} onChange={e => setForm(f => ({ ...f, designation: e.target.value }))}
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-1">
-            <button onClick={onClose} className="text-xs text-gray-400 px-3 py-1.5 hover:text-gray-200">Cancel</button>
-            <button
-              onClick={submit} disabled={submitting}
-              className="flex items-center gap-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 px-4 py-1.5 rounded-xl text-white disabled:opacity-50 transition-colors"
-            >
-              {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              {submitting ? 'Saving…' : 'Save changes'}
-            </button>
-          </div>
+      <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+        <Avatar src={member.profileImage} name={member.name} color={(ROLE_META[member.role] || ROLE_META.TeamMember).color} size={36} />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-100 truncate">{member.name}</p>
+          <p className="text-[11px] text-gray-500 truncate">{member.team || 'No team'} · {member.role}</p>
         </div>
-      </motion.div>
-    </>
+      </div>
+
+      {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400">{error}</div>}
+
+      {/* Team Leader toggle */}
+      <button
+        onClick={() => setIsLeader(v => !v)}
+        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${
+          isLeader ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-white/[0.03] border-white/10'
+        }`}
+      >
+        <span className="flex items-center gap-2 text-xs font-bold text-white"><Award className="w-3.5 h-3.5 text-emerald-400" /> Team Leader role</span>
+        <span className={`w-9 h-5 rounded-full flex items-center px-0.5 transition-all ${isLeader ? 'bg-emerald-500 justify-end' : 'bg-white/10 justify-start'}`}>
+          <span className="w-4 h-4 rounded-full bg-white" />
+        </span>
+      </button>
+
+      {/* Restricted features */}
+      <div className={`space-y-2 transition-opacity ${isLeader ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
+        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Restricted features</p>
+        {TL_PERMISSIONS.map(perm => {
+          const on = granted.has(perm.key);
+          return (
+            <button key={perm.key} onClick={() => toggle(perm.key)}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-lg border transition-all ${
+                on ? 'bg-blue-500/10 border-blue-500/30' : 'bg-white/[0.02] border-white/[0.06]'
+              }`}>
+              <span className="flex items-center gap-2 text-xs text-gray-200">
+                {on ? <CheckCircle className="w-3.5 h-3.5 text-blue-400" /> : <Lock className="w-3.5 h-3.5 text-gray-500" />}
+                {perm.label}
+              </span>
+              <span className={`text-[10px] font-bold ${on ? 'text-blue-400' : 'text-gray-600'}`}>{on ? 'Unlocked' : 'Locked'}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onClose} className="text-xs text-gray-400 px-3 py-1.5 hover:text-gray-200">Cancel</button>
+        <button onClick={submit} disabled={submitting}
+          className="flex items-center gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 px-4 py-1.5 rounded-xl text-white disabled:opacity-50 transition-colors">
+          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          {submitting ? 'Saving…' : 'Save permissions'}
+        </button>
+      </div>
+    </ModalShell>
   );
 }
 
-// ─── Create Team Modal (NEW) ─────────────────────────────────────────────────────
-// Lets an Admin/President manually create a new team — name + description.
-// Hits POST /api/admin/teams (mirror the shape of the members endpoint).
-function CreateTeamModal({
-  onClose, onDone, actor,
-}: { onClose: () => void; onDone: (teamName: string) => void; actor: { id: string; role: string } }) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
+// ─── Create team modal ────────────────────────────────────────────────────────
+function CreateTeamModal({ onClose, onDone, actor }: { onClose: () => void; onDone: () => void; actor: { id: string; role: string } }) {
+  const [form, setForm] = useState({ name: '', description: '', coverImage: '' });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
   const submit = async () => {
-    if (!name.trim()) { setError('Team name is required.'); return; }
+    if (!form.name.trim()) { setError('Team name is required.'); return; }
     setSubmitting(true); setError('');
     try {
       const res = await fetch('/api/admin/teams', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          actorRole: actor.role, actorId: actor.id,
-          name: name.trim(), description: description.trim(),
-        }),
+        body: JSON.stringify({ actorRole: actor.role, actorId: actor.id, ...form, name: form.name.trim() }),
       });
       const data = await res.json();
       if (!data.success) { setError(data.message || 'Could not create team.'); return; }
-      onDone(name.trim());
-      onClose();
-    } catch {
-      setError('Could not reach the server. Team was not created.');
-    } finally {
-      setSubmitting(false);
-    }
+      onDone(); onClose();
+    } catch { setError('Could not reach the server. Team was not created.'); }
+    finally { setSubmitting(false); }
   };
 
   return (
-    <>
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={onClose} />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 10 }}
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
-      >
-        <div className="pointer-events-auto w-full max-w-sm bg-zinc-950 border border-white/10 rounded-2xl p-5 space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <FolderPlus className="w-4 h-4 text-emerald-400" /> Create new team
-            </h3>
-            <button onClick={onClose} className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center">
-              <X className="w-3.5 h-3.5 text-gray-400" />
-            </button>
-          </div>
+    <ModalShell onClose={onClose} wide>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-white flex items-center gap-2"><FolderPlus className="w-4 h-4 text-emerald-400" /> Create new team</h3>
+        <button onClick={onClose} className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center"><X className="w-3.5 h-3.5 text-gray-400" /></button>
+      </div>
 
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400">{error}</div>
-          )}
+      {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400">{error}</div>}
 
-          <div>
-            <label className="block text-[11px] text-gray-400 mb-1.5 font-medium">Team name</label>
-            <input
-              autoFocus
-              type="text"
-              placeholder="e.g. AI/ML Team"
-              value={name}
-              onChange={e => setName(e.target.value)}
-              className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-emerald-500"
-            />
-          </div>
+      <div>
+        <label className="block text-[11px] text-gray-400 mb-1.5 font-medium">Team name</label>
+        <input autoFocus type="text" placeholder="e.g. AI/ML Team" value={form.name}
+          onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+          className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-emerald-500" />
+      </div>
+      <div>
+        <label className="block text-[11px] text-gray-400 mb-1.5 font-medium">Description</label>
+        <textarea placeholder="What does this team work on?" value={form.description} rows={3}
+          onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+          className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-emerald-500 resize-none" />
+      </div>
+      <div>
+        <label className="block text-[11px] text-gray-400 mb-1.5 font-medium flex items-center gap-1"><ImageIcon className="w-3 h-3" /> Cover image URL</label>
+        <input type="text" placeholder="https://…" value={form.coverImage}
+          onChange={e => setForm(f => ({ ...f, coverImage: e.target.value }))}
+          className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-emerald-500" />
+      </div>
 
-          <div>
-            <label className="block text-[11px] text-gray-400 mb-1.5 font-medium">Description</label>
-            <textarea
-              placeholder="What does this team work on?"
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              rows={3}
-              className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-emerald-500 resize-none"
-            />
-          </div>
-
-          <div className="flex justify-end gap-2 pt-1">
-            <button onClick={onClose} className="text-xs text-gray-400 px-3 py-1.5 hover:text-gray-200">Cancel</button>
-            <button
-              onClick={submit} disabled={submitting}
-              className="flex items-center gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 px-4 py-1.5 rounded-xl text-white disabled:opacity-50 transition-colors"
-            >
-              {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              {submitting ? 'Creating…' : 'Create team'}
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </>
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onClose} className="text-xs text-gray-400 px-3 py-1.5 hover:text-gray-200">Cancel</button>
+        <button onClick={submit} disabled={submitting}
+          className="flex items-center gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 px-4 py-1.5 rounded-xl text-white disabled:opacity-50 transition-colors">
+          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          {submitting ? 'Creating…' : 'Create team'}
+        </button>
+      </div>
+    </ModalShell>
   );
 }
 
-export default function AdminMembers() {
-  const actor = useCurrentUser();
-  const canManage = MEMBER_MANAGERS.includes(actor.role);
+// ─── Edit team modal (name / description / cover / leader / status / delete) ──
+function EditTeamModal({ team, teamMembers, onClose, onDone, actor }: { team: any; teamMembers: any[]; onClose: () => void; onDone: () => void; actor: { id: string; role: string } }) {
+  const [form, setForm] = useState({
+    name: team.name || '',
+    description: team.description || '',
+    coverImage: team.coverImage || '',
+    lead: team.lead?._id || '',
+    isActive: team.isActive !== false,
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState('');
 
-  const [search, setSearch] = useState('');
-  const [selectedRole, setSelectedRole] = useState('All');
-  const [activeCategory, setActiveCategory] = useState<CategoryKey | 'All'>('All'); // NEW
+  const save = async () => {
+    if (!form.name.trim()) { setError('Team name is required.'); return; }
+    setSubmitting(true); setError('');
+    try {
+      const res = await fetch('/api/admin/teams', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actorRole: actor.role, actorId: actor.id, id: team._id, ...form, name: form.name.trim() }),
+      });
+      const data = await res.json();
+      if (!data.success) { setError(data.message || 'Update failed.'); return; }
+      onDone(); onClose();
+    } catch { setError('Could not reach the server. Try again.'); }
+    finally { setSubmitting(false); }
+  };
+
+  const remove = async () => {
+    if (!confirm(`Delete team "${team.name}"? This only works if no members remain.`)) return;
+    setDeleting(true); setError('');
+    try {
+      const res = await fetch(`/api/admin/teams?id=${team._id}&actorRole=${encodeURIComponent(actor.role)}&actorId=${encodeURIComponent(actor.id)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!data.success) { setError(data.message || 'Delete failed.'); return; }
+      onDone(); onClose();
+    } catch { setError('Could not reach the server. Nothing was deleted.'); }
+    finally { setDeleting(false); }
+  };
+
+  return (
+    <ModalShell onClose={onClose} wide>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-white flex items-center gap-2"><Settings2 className="w-4 h-4 text-blue-400" /> Edit team</h3>
+        <button onClick={onClose} className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center"><X className="w-3.5 h-3.5 text-gray-400" /></button>
+      </div>
+
+      {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400">{error}</div>}
+
+      {/* Cover preview + controls */}
+      <div>
+        <label className="block text-[11px] text-gray-400 mb-1.5 font-medium flex items-center gap-1"><ImageIcon className="w-3 h-3" /> Cover image</label>
+        <div className="h-24 rounded-lg overflow-hidden border border-white/10 bg-gradient-to-br from-blue-500/20 to-indigo-500/10 flex items-center justify-center mb-2">
+          {form.coverImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={form.coverImage} alt={form.name} className="w-full h-full object-cover" />
+          ) : (
+            <ImageIcon className="w-6 h-6 text-white/30" />
+          )}
+        </div>
+        <div className="flex gap-2">
+          <input type="text" placeholder="Paste cover image URL to upload / replace" value={form.coverImage}
+            onChange={e => setForm(f => ({ ...f, coverImage: e.target.value }))}
+            className="flex-1 p-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-blue-500" />
+          {form.coverImage && (
+            <button onClick={() => setForm(f => ({ ...f, coverImage: '' }))} title="Delete cover"
+              className="px-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-[11px] text-gray-400 mb-1 font-medium">Team name</label>
+        <input className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-blue-500"
+          value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+      </div>
+      <div>
+        <label className="block text-[11px] text-gray-400 mb-1 font-medium">Description</label>
+        <textarea rows={2} className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-blue-500 resize-none"
+          value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+      </div>
+      <div>
+        <label className="block text-[11px] text-gray-400 mb-1 font-medium">Team leader</label>
+        <div className="relative">
+          <select className="w-full appearance-none p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-blue-500 pr-8"
+            value={form.lead} onChange={e => setForm(f => ({ ...f, lead: e.target.value }))}>
+            <option value="" className="bg-zinc-950">— None —</option>
+            {teamMembers.map(m => <option key={m._id} value={m._id} className="bg-zinc-950">{m.name} ({m.role})</option>)}
+          </select>
+          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+        </div>
+      </div>
+
+      <button onClick={() => setForm(f => ({ ...f, isActive: !f.isActive }))}
+        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${
+          form.isActive ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'
+        }`}>
+        <span className="flex items-center gap-2 text-xs font-bold text-white"><Power className="w-3.5 h-3.5" /> Team status</span>
+        <span className={`text-[11px] font-bold ${form.isActive ? 'text-emerald-400' : 'text-rose-400'}`}>{form.isActive ? 'Active' : 'Inactive'}</span>
+      </button>
+
+      <div className="flex justify-between items-center gap-2 pt-1">
+        <button onClick={remove} disabled={deleting}
+          className="flex items-center gap-1.5 text-xs font-bold text-rose-400 hover:text-rose-300 px-3 py-1.5 rounded-xl hover:bg-rose-500/10 disabled:opacity-50">
+          {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />} Delete team
+        </button>
+        <div className="flex gap-2">
+          <button onClick={onClose} className="text-xs text-gray-400 px-3 py-1.5 hover:text-gray-200">Cancel</button>
+          <button onClick={save} disabled={submitting}
+            className="flex items-center gap-1.5 text-xs font-bold bg-blue-600 hover:bg-blue-500 px-4 py-1.5 rounded-xl text-white disabled:opacity-50 transition-colors">
+            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+            {submitting ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </ModalShell>
+  );
+}
+
+// ─── Add member modal ─────────────────────────────────────────────────────────
+function AddMemberModal({ onClose, onDone, teamNames, defaultTeam }: { onClose: () => void; onDone: () => void; teamNames: string[]; defaultTeam: string }) {
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'TeamMember', team: defaultTeam });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    if (!form.name || !form.email || !form.password) { setError('Name, email and password are required.'); return; }
+    setSubmitting(true); setError('');
+    try {
+      const res = await fetch('/api/admin/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!data.success) { setError(data.message || 'Failed to create member.'); return; }
+      onDone(); onClose();
+    } catch { setError('Could not reach the server. The member was not created.'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <ModalShell onClose={onClose} wide>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-white flex items-center gap-2"><UserPlus className="w-4 h-4 text-blue-400" /> Add new member</h3>
+        <button onClick={onClose} className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center"><X className="w-3.5 h-3.5 text-gray-400" /></button>
+      </div>
+
+      {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400">{error}</div>}
+
+      <form onSubmit={e => e.preventDefault()} autoComplete="off" className="space-y-3">
+        <div>
+          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Full name</label>
+          <input type="text" placeholder="Enter full name" value={form.name} autoComplete="new-unique-name"
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500" />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Email</label>
+          <input type="email" placeholder="name@domain.com" value={form.email} autoComplete="new-unique-email"
+            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+            className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500" />
+        </div>
+        <div>
+          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Password</label>
+          <input type="password" placeholder="••••••••" value={form.password} autoComplete="new-password"
+            onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+            className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Role</label>
+            <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
+              className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 cursor-pointer">
+              {PROMOTABLE_ROLES.map(r => <option key={r} value={r} className="bg-zinc-950">{r}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Team</label>
+            <select value={form.team} onChange={e => setForm(f => ({ ...f, team: e.target.value }))}
+              className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 cursor-pointer">
+              <option value="" className="bg-zinc-950">— None —</option>
+              {teamNames.map(t => <option key={t} value={t} className="bg-zinc-950">{t}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <button type="button" onClick={submit} disabled={submitting}
+          className="w-full mt-1 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs shadow-md transition-all border border-blue-400/20 disabled:opacity-50 flex items-center justify-center gap-1.5">
+          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          {submitting ? 'Creating…' : 'Create member'}
+        </button>
+      </form>
+    </ModalShell>
+  );
+}
+
+// ─── Team card ────────────────────────────────────────────────────────────────
+function TeamCard({ team, onOpen, index }: { team: any; onOpen: () => void; index: number }) {
+  const stat = (Icon: any, label: string, value: number | string) => (
+    <div className="flex flex-col items-center gap-0.5 py-1.5 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+      <Icon className="w-3.5 h-3.5 text-slate-400" />
+      <span className="text-sm font-black text-white leading-none">{value}</span>
+      <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wide">{label}</span>
+    </div>
+  );
+
+  return (
+    <motion.button
+      initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.04 }}
+      whileHover={{ y: -4 }} onClick={onOpen}
+      className="text-left bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden backdrop-blur-xl hover:border-white/15 transition-all group flex flex-col"
+    >
+      {/* Cover */}
+      <div className="relative h-28 bg-gradient-to-br from-blue-500/25 via-indigo-500/15 to-purple-500/10 overflow-hidden">
+        {team.coverImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={team.coverImage} alt={team.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Users className="w-8 h-8 text-white/20" />
+          </div>
+        )}
+        <div className="absolute top-2 right-2"><StatusBadge active={team.isActive !== false} /></div>
+        <div className="absolute bottom-2 left-3 text-[9px] font-medium text-white/70 flex items-center gap-1">
+          <Calendar className="w-2.5 h-2.5" /> {fmtDate(team.createdAt)}
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="p-4 flex-1 flex flex-col gap-3">
+        <div>
+          <h3 className="text-sm font-black text-white truncate">{team.name}</h3>
+          <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5 min-h-[28px]">{team.description || 'No description provided.'}</p>
+        </div>
+
+        {/* Leader */}
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-white/[0.02] border border-white/[0.04]">
+          {team.lead ? (
+            <>
+              <Avatar src={team.lead.profileImage} name={team.lead.name} color="#34d399" size={24} />
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold text-slate-200 truncate leading-tight">{team.lead.name}</p>
+                <p className="text-[9px] text-emerald-400 font-semibold">Team Leader</p>
+              </div>
+            </>
+          ) : (
+            <span className="text-[10px] text-slate-500 flex items-center gap-1.5"><Award className="w-3 h-3" /> No leader assigned</span>
+          )}
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-1.5">
+          {stat(Users, 'Members', team.totalMembers ?? 0)}
+          {stat(UserCheck, 'Active', team.activeMembers ?? 0)}
+          {stat(FolderOpen, 'Resources', team.resources ?? 0)}
+          {stat(FileText, 'Blogs', team.blogs ?? 0)}
+          {stat(Calendar, 'Events', team.events ?? 0)}
+          <div className="flex items-center justify-center py-1.5 rounded-lg bg-blue-500/5 border border-blue-500/10 text-blue-400 text-[10px] font-bold gap-1 group-hover:bg-blue-500/10 transition-colors">
+            Open <ArrowUpCircle className="w-3 h-3 rotate-45" />
+          </div>
+        </div>
+      </div>
+    </motion.button>
+  );
+}
+
+// ─── Member row ───────────────────────────────────────────────────────────────
+function MemberRow({ member, actor, canManageMembers, canManageRoles, busyId, onToggle, onDelete, onEdit, onPromote, onPermissions }: any) {
+  const meta = ROLE_META[member.role] || ROLE_META.TeamMember;
+  const RankIcon = meta.Icon;
+  const isSelf = member._id === actor.id;
+  const isBusy = busyId === member._id;
+  const active = member.status !== 'inactive';
+  const canLeaderPerms = canManageMembers && ['TeamLeader', 'TeamMember'].includes(member.role);
+
+  return (
+    <motion.div layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      className="border p-4 rounded-xl grid grid-cols-1 lg:grid-cols-12 gap-4 items-start lg:items-center relative overflow-hidden px-5 lg:px-6 bg-white/[0.01]"
+      style={{ borderColor: `${meta.color}25` }}>
+      <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: meta.color }} />
+
+      {/* Identity */}
+      <div className="col-span-1 lg:col-span-4 flex items-center gap-3 min-w-0">
+        <Avatar src={member.profileImage} name={member.name} color={meta.color} size={40} />
+        <div className="min-w-0 truncate">
+          <h4 className="font-bold text-sm text-white flex items-center gap-1.5 truncate">
+            {member.name}
+            {isSelf && <span className="text-[9px] bg-white/10 text-gray-400 px-1.5 py-0.5 rounded-full font-medium">You</span>}
+          </h4>
+          <span className="text-xs text-slate-400 flex items-center gap-1 mt-0.5 truncate">
+            <Mail className="w-3 h-3 text-slate-600 flex-shrink-0" /> {member.email}
+          </span>
+        </div>
+      </div>
+
+      {/* Role + designation */}
+      <div className="col-span-1 lg:col-span-3 flex flex-col">
+        <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: meta.color }}>
+          <RankIcon className="w-3.5 h-3.5 flex-shrink-0" /> {member.role}
+        </span>
+        <span className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5 truncate">
+          <Briefcase className="w-3 h-3 flex-shrink-0" /> {member.designation || '—'}
+        </span>
+      </div>
+
+      {/* Status + joined */}
+      <div className="col-span-1 lg:col-span-3 flex flex-col gap-1">
+        <button onClick={() => onToggle(member)} disabled={!canManageMembers || isSelf || isBusy}
+          title={isSelf ? "You can't change your own status" : canManageMembers ? 'Click to toggle' : 'No permission'}
+          className={`text-xs font-bold flex items-center gap-1 w-fit ${active ? 'text-emerald-400' : 'text-rose-400'} ${
+            canManageMembers && !isSelf ? 'hover:opacity-70 cursor-pointer' : 'cursor-default opacity-80'
+          }`}>
+          {isBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : active ? <CheckCircle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+          {member.status || 'active'}
+        </button>
+        <span className="text-[11px] text-slate-500 flex items-center gap-1"><Calendar className="w-3 h-3" /> {fmtDate(member.createdAt)}</span>
+      </div>
+
+      {/* Actions */}
+      <div className="col-span-1 lg:col-span-2 flex items-center justify-start lg:justify-end gap-1 border-t lg:border-t-0 border-white/5 pt-3 lg:pt-0">
+        {canLeaderPerms && (
+          <button onClick={() => onPermissions(member)} title="Team-Leader permissions"
+            className="p-2 text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/10 rounded-md transition-all">
+            <Shield className="w-3.5 h-3.5" />
+          </button>
+        )}
+        {canManageRoles && (
+          <button onClick={() => onPromote(member)} title="Change role"
+            className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-md transition-all">
+            <ArrowUpCircle className="w-3.5 h-3.5" />
+          </button>
+        )}
+        <button onClick={() => canManageMembers && onEdit(member)} disabled={!canManageMembers}
+          title={canManageMembers ? 'Edit' : 'No permission'}
+          className="p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+          <Edit2 className="w-3.5 h-3.5" />
+        </button>
+        <button onClick={() => onDelete(member)} disabled={!canManageMembers || isSelf || isBusy}
+          title={isSelf ? "You can't delete yourself" : canManageMembers ? 'Delete' : 'No permission'}
+          className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/5 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+          {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+export default function AdminMembers() {
+  const { actor } = useCurrentUser();
+  const canManageMembers = MEMBER_MANAGERS.includes(actor.role);
+  const canManageRoles = ROLE_MANAGERS.includes(actor.role);
+
+  const [teams, setTeams] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [showTeamModal, setShowTeamModal] = useState(false); // NEW
+
+  const [selectedKey, setSelectedKey] = useState<string | null>(null); // null → teams grid
+  const [teamSearch, setTeamSearch] = useState('');
+  const [memberSearch, setMemberSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('All');
   const [visibleCount, setVisibleCount] = useState(8);
 
+  // modals
+  const [showCreateTeam, setShowCreateTeam] = useState(false);
+  const [showEditTeam, setShowEditTeam] = useState(false);
+  const [showAddMember, setShowAddMember] = useState(false);
   const [promoting, setPromoting] = useState<any | null>(null);
   const [editing, setEditing] = useState<any | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null); // for status toggle / delete spinners
+  const [permMember, setPermMember] = useState<any | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const [existingTeams, setExistingTeams] = useState<string[]>([
-    'Core Team', 'Project Team', 'Web Team', 'Blockchain Team', 'PR/Content Team', 'Design Team',
-  ]);
-
-  const [formData, setFormData] = useState({
-    name: '', email: '', password: '', role: 'TeamMember', team: 'Core Team',
-  });
-
-  useEffect(() => {
-    if (formData.role === 'PI') {
-      setFormData(prev => ({ ...prev, team: 'Institutional Head / Faculty' }));
-    } else if (formData.team === 'Institutional Head / Faculty') {
-      setFormData(prev => ({ ...prev, team: 'Core Team' }));
-    }
-  }, [formData.role]);
-
-  const fetchMembers = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/members');
-      const data = await res.json();
-      if (data.success) setMembers(data.members);
-    } catch (error) {
-      console.error(error);
+      const [tRes, mRes] = await Promise.all([
+        fetch('/api/admin/teams').then(r => r.json()),
+        fetch('/api/admin/members').then(r => r.json()),
+      ]);
+      if (tRes.success) setTeams(tRes.teams || []);
+      if (mRes.success) setMembers(mRes.members || []);
+    } catch (e) {
+      console.error(e);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchMembers(); }, [fetchMembers]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  // NEW: called after a team is created so the dropdowns immediately know about it.
-  const handleTeamCreated = useCallback((teamName: string) => {
-    setExistingTeams(prev => prev.includes(teamName) ? prev : [...prev, teamName]);
-  }, []);
+  const realTeamNames = useMemo(() => new Set(teams.map(t => t.name)), [teams]);
+
+  // Team cards = real teams + synthetic buckets so NO member ever disappears.
+  const displayTeams = useMemo(() => {
+    const real = teams.map(t => ({ ...t, _key: t.name, synthetic: false }));
+
+    const buckets: Record<string, any[]> = {};
+    members.forEach(m => {
+      const k = teamKeyOf(m);
+      if (k !== UNASSIGNED_KEY && realTeamNames.has(k)) return; // already a real card
+      (buckets[k] ||= []).push(m);
+    });
+
+    const synthetic = Object.entries(buckets).map(([k, ms]) => ({
+      _id: `synthetic-${k}`,
+      _key: k,
+      synthetic: true,
+      name: k === UNASSIGNED_KEY ? 'Unassigned' : k,
+      description: k === UNASSIGNED_KEY
+        ? 'Members not yet assigned to a managed team.'
+        : 'Ad-hoc group derived from member records.',
+      coverImage: '',
+      isActive: true,
+      createdAt: null,
+      lead: null,
+      totalMembers: ms.length,
+      activeMembers: ms.filter(x => x.status === 'active').length,
+      blogs: 0, events: 0, resources: 0,
+    }));
+
+    return [...real, ...synthetic];
+  }, [teams, members, realTeamNames]);
+
+  const filteredTeams = useMemo(() => {
+    const q = teamSearch.toLowerCase();
+    if (!q) return displayTeams;
+    return displayTeams.filter(t =>
+      t.name.toLowerCase().includes(q) ||
+      (t.description || '').toLowerCase().includes(q) ||
+      (t.lead?.name || '').toLowerCase().includes(q)
+    );
+  }, [displayTeams, teamSearch]);
+
+  const selectedTeam = useMemo(() => displayTeams.find(t => t._key === selectedKey) || null, [displayTeams, selectedKey]);
+
+  const teamMembers = useMemo(() => {
+    if (!selectedTeam) return [];
+    return members.filter(m => teamKeyOf(m) === selectedTeam._key);
+  }, [members, selectedTeam]);
 
   const filteredMembers = useMemo(() => {
-    return members.filter((member) => {
-      const matchesSearch =
-        member.name?.toLowerCase().includes(search.toLowerCase()) ||
-        member.email?.toLowerCase().includes(search.toLowerCase()) ||
-        member.team?.toLowerCase().includes(search.toLowerCase());
-      const matchesRole = selectedRole === 'All' || member.role === selectedRole;
-      // NEW: category filter (Tesla Members / PI / Alumni)
-      const matchesCategory = activeCategory === 'All' || CATEGORY_GROUPS[activeCategory].roles.includes(member.role);
-      return matchesSearch && matchesRole && matchesCategory;
+    const q = memberSearch.toLowerCase();
+    return teamMembers.filter(m => {
+      const matchesSearch = !q || m.name?.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q);
+      const matchesRole = roleFilter === 'All' || m.role === roleFilter;
+      return matchesSearch && matchesRole;
     });
-  }, [members, search, selectedRole, activeCategory]);
+  }, [teamMembers, memberSearch, roleFilter]);
 
-  const stats = useMemo(() => ({
-    totalTeams: existingTeams.length,
-    bearersCount: members.filter(m => m.role === 'OfficeBearer').length,
-    alumniCount: members.filter(m => m.role === 'Alumni').length,
-  }), [members, existingTeams]);
-
-  // NEW: counts per category, shown as badges on the filter buttons
-  const categoryCounts = useMemo(() => ({
-    tesla:  members.filter(m => CATEGORY_GROUPS.tesla.roles.includes(m.role)).length,
-    pi:     members.filter(m => CATEGORY_GROUPS.pi.roles.includes(m.role)).length,
-    alumni: members.filter(m => CATEGORY_GROUPS.alumni.roles.includes(m.role)).length,
-  }), [members]);
-
-  const paginatedMembers = useMemo(() => {
-    if (search !== '') return filteredMembers;
+  const visibleMembers = useMemo(() => {
+    if (memberSearch || roleFilter !== 'All') return filteredMembers;
     return filteredMembers.slice(0, visibleCount);
-  }, [filteredMembers, visibleCount, search]);
+  }, [filteredMembers, visibleCount, memberSearch, roleFilter]);
 
-  const handleCreateMember = async () => {
-    try {
-      const res = await fetch('/api/admin/members', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
-      const data = await res.json();
-      if (!res.ok) { alert(data.message || 'Failed to create member'); return; }
-      setShowModal(false);
-      setFormData({ name: '', email: '', password: '', role: 'TeamMember', team: 'Core Team' });
-      await fetchMembers();
-    } catch (error) {
-      console.error(error);
-      alert('Could not reach the server. The member was not created.');
-    }
+  const teamNames = useMemo(() => teams.map(t => t.name), [teams]);
+
+  const openTeam = (key: string) => {
+    setSelectedKey(key);
+    setMemberSearch(''); setRoleFilter('All'); setVisibleCount(8);
   };
+  const backToTeams = () => setSelectedKey(null);
+
+  const summary = useMemo(() => ({
+    teams: teams.length,
+    members: members.length,
+    active: members.filter(m => m.status === 'active').length,
+  }), [teams, members]);
 
   const handleToggleStatus = useCallback(async (member: any) => {
-    if (!canManage) return;
+    if (!canManageMembers) return;
     setBusyId(member._id);
     try {
       const res = await fetch('/api/admin/members', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ actorRole: actor.role, actorId: actor.id, id: member._id, action: 'toggleStatus' }),
       });
       const data = await res.json();
       if (!data.success) { alert(data.message || 'Update failed.'); return; }
-      await fetchMembers();
+      await fetchAll();
     } catch { alert('Could not reach the server.'); }
     finally { setBusyId(null); }
-  }, [canManage, actor, fetchMembers]);
+  }, [canManageMembers, actor, fetchAll]);
 
   const handleDelete = useCallback(async (member: any) => {
-    if (!canManage) return;
+    if (!canManageMembers) return;
     if (!confirm(`Remove ${member.name} permanently? This can't be undone.`)) return;
     setBusyId(member._id);
     try {
-      const res = await fetch(`/api/admin/members?id=${member._id}&actorRole=${encodeURIComponent(actor.role)}&actorId=${encodeURIComponent(actor.id)}`, {
-        method: 'DELETE',
-      });
+      const res = await fetch(`/api/admin/members?id=${member._id}&actorRole=${encodeURIComponent(actor.role)}&actorId=${encodeURIComponent(actor.id)}`, { method: 'DELETE' });
       const data = await res.json();
       if (!data.success) { alert(data.message || 'Delete failed.'); return; }
-      setMembers(prev => prev.filter(m => m._id !== member._id));
+      await fetchAll();
     } catch { alert('Could not reach the server. Nothing was deleted.'); }
     finally { setBusyId(null); }
-  }, [canManage, actor]);
+  }, [canManageMembers, actor, fetchAll]);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-8 min-h-screen text-slate-200">
+    <div className="max-w-7xl mx-auto space-y-6 px-4 sm:px-6 lg:px-8 py-8 min-h-screen text-slate-200">
 
+      {/* Modals */}
       <AnimatePresence>
-        {promoting && (
-          <PromoteModal member={promoting} actor={actor} onClose={() => setPromoting(null)} onDone={fetchMembers} />
+        {promoting && <PromoteModal member={promoting} actor={actor} onClose={() => setPromoting(null)} onDone={fetchAll} />}
+        {editing && <EditMemberModal member={editing} actor={actor} teamNames={teamNames} onClose={() => setEditing(null)} onDone={fetchAll} />}
+        {permMember && <PermissionPanel member={permMember} actor={actor} onClose={() => setPermMember(null)} onDone={fetchAll} />}
+        {showCreateTeam && <CreateTeamModal actor={actor} onClose={() => setShowCreateTeam(false)} onDone={fetchAll} />}
+        {showEditTeam && selectedTeam && !selectedTeam.synthetic && (
+          <EditTeamModal team={selectedTeam} teamMembers={teamMembers} actor={actor} onClose={() => setShowEditTeam(false)} onDone={fetchAll} />
         )}
-        {editing && (
-          <EditModal member={editing} actor={actor} teams={existingTeams} onClose={() => setEditing(null)} onDone={fetchMembers} />
-        )}
-        {showTeamModal && (
-          <CreateTeamModal actor={actor} onClose={() => setShowTeamModal(false)} onDone={handleTeamCreated} />
+        {showAddMember && (
+          <AddMemberModal teamNames={teamNames} defaultTeam={selectedTeam && !selectedTeam.synthetic ? selectedTeam.name : ''}
+            onClose={() => setShowAddMember(false)} onDone={fetchAll} />
         )}
       </AnimatePresence>
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/[0.02] border border-white/5 p-6 rounded-2xl backdrop-blur-xl">
-        <div>
-          <h1 className="text-3xl font-black tracking-tight text-white">Member Management</h1>
-          <p className="text-xs text-slate-400 mt-1">Manage club members, roles, and team assignments.</p>
+      {loading ? (
+        <div className="p-16 text-center flex flex-col items-center justify-center gap-2 bg-white/[0.01] border border-white/5 rounded-xl">
+          <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+          <span className="text-xs text-slate-400">Loading teams…</span>
         </div>
-
-        {canManage ? (
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* NEW: Create Team button */}
-            <motion.button
-              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              onClick={() => setShowTeamModal(true)}
-              className="flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg border border-emerald-500/20"
-            >
-              <FolderPlus className="w-4 h-4" /> Create new team
-            </motion.button>
-            <motion.button
-              whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-              onClick={() => setShowModal(true)}
-              className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg border border-blue-500/20"
-            >
-              <UserPlus className="w-4 h-4" /> Add member
-            </motion.button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-400">
-            <Lock className="w-3.5 h-3.5" /> View only — Admin/President can manage members
-          </div>
-        )}
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-        {[
-          { title: 'Active Teams', count: stats.totalTeams, icon: Layers, color: 'border-cyan-500/10 text-cyan-400' },
-          { title: 'Office Bearers', count: stats.bearersCount, icon: ShieldCheck, color: 'border-blue-500/10 text-blue-400' },
-          { title: 'Alumni', count: stats.alumniCount, icon: GraduationCap, color: 'border-emerald-500/10 text-emerald-400' },
-        ].map((card, i) => (
-          <motion.div
-            key={card.title} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-            className={`bg-white/[0.01] border ${card.color.split(' ')[0]} p-5 rounded-xl flex items-center justify-between shadow-sm`}
-          >
+      ) : !selectedTeam ? (
+        // ═══════════════ DEFAULT VIEW — TEAM CARDS ONLY ═══════════════
+        <>
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/[0.02] border border-white/5 p-6 rounded-2xl backdrop-blur-xl">
             <div>
-              <span className="text-[11px] font-medium uppercase tracking-wider text-slate-400">{card.title}</span>
-              <h3 className="text-3xl font-black text-white mt-1">{loading ? '...' : card.count}</h3>
+              <h1 className="text-3xl font-black tracking-tight text-white">Teams</h1>
+              <p className="text-xs text-slate-400 mt-1">Pick a team to manage its members, leader and permissions.</p>
             </div>
-            <div className={`p-2.5 rounded-lg bg-white/5 ${card.color.split(' ')[1]}`}>
-              <card.icon className="w-5 h-5" />
+            {canManageMembers ? (
+              <div className="flex items-center gap-3 flex-wrap">
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setShowCreateTeam(true)}
+                  className="flex items-center gap-2 px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg border border-emerald-500/20">
+                  <FolderPlus className="w-4 h-4" /> Create team
+                </motion.button>
+                <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setShowAddMember(true)}
+                  className="flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg border border-blue-500/20">
+                  <UserPlus className="w-4 h-4" /> Add member
+                </motion.button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-400">
+                <Lock className="w-3.5 h-3.5" /> View only
+              </div>
+            )}
+          </div>
+
+          {/* Summary */}
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { title: 'Teams', count: summary.teams, Icon: Building2, color: '#60a5fa' },
+              { title: 'Members', count: summary.members, Icon: Users, color: '#34d399' },
+              { title: 'Active', count: summary.active, Icon: UserCheck, color: '#a78bfa' },
+            ].map(c => (
+              <div key={c.title} className="bg-white/[0.01] border border-white/5 p-4 rounded-xl flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-slate-400">{c.title}</span>
+                  <h3 className="text-2xl font-black text-white mt-0.5">{c.count}</h3>
+                </div>
+                <div className="p-2 rounded-lg bg-white/5" style={{ color: c.color }}><c.Icon className="w-5 h-5" /></div>
+              </div>
+            ))}
+          </div>
+
+          {/* Team search */}
+          <div className="relative w-full md:w-96 group">
+            <input type="text" placeholder="Search teams by name, description or leader…" value={teamSearch}
+              onChange={e => setTeamSearch(e.target.value)}
+              className="w-full bg-slate-950/40 border border-white/5 rounded-lg py-2.5 pl-11 pr-4 text-xs text-white focus:outline-none focus:border-blue-500/40" />
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-400" />
+          </div>
+
+          {/* Cards */}
+          {filteredTeams.length === 0 ? (
+            <div className="p-12 text-center text-xs text-slate-500 bg-white/[0.01] border border-white/5 rounded-xl">
+              No teams match your search.
             </div>
-          </motion.div>
-        ))}
-      </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {filteredTeams.map((team, i) => (
+                <TeamCard key={team._key} team={team} index={i} onOpen={() => openTeam(team._key)} />
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        // ═══════════════ TEAM DETAILS ═══════════════
+        <>
+          <button onClick={backToTeams}
+            className="flex items-center gap-2 text-xs font-bold text-slate-300 hover:text-white bg-white/[0.03] hover:bg-white/[0.06] border border-white/10 px-4 py-2 rounded-xl transition-all w-fit">
+            <ArrowLeft className="w-4 h-4" /> Back to Teams
+          </button>
 
-      {/* NEW: Category Switcher — Active Tesla Members / PI / Alumni */}
-      <div className="bg-white/[0.01] border border-white/5 rounded-2xl p-2 flex flex-col sm:flex-row gap-2">
-        <button
-          onClick={() => setActiveCategory('All')}
-          className={`flex-1 flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-xs font-bold transition-all duration-200 ${
-            activeCategory === 'All'
-              ? 'bg-white/10 text-white shadow-inner'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.03]'
-          }`}
-        >
-          <Users className="w-3.5 h-3.5" /> All members
-          <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded-full">{members.length}</span>
-        </button>
-
-        {(Object.keys(CATEGORY_GROUPS) as CategoryKey[]).map((key) => {
-          const group = CATEGORY_GROUPS[key];
-          const Icon = group.Icon;
-          const isActive = activeCategory === key;
-          return (
-            <motion.button
-              key={key}
-              whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}
-              onClick={() => setActiveCategory(key)}
-              className={`flex-1 relative flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-xs font-bold transition-all duration-200 border overflow-hidden ${
-                isActive ? 'text-white' : 'text-slate-400 hover:text-slate-200 border-transparent hover:bg-white/[0.03]'
-              }`}
-              style={{
-                borderColor: isActive ? `${group.color}50` : 'transparent',
-                background: isActive ? `linear-gradient(135deg, ${group.color}25, ${group.color}05)` : undefined,
-              }}
-            >
-              <Icon className="w-3.5 h-3.5" style={{ color: isActive ? group.color : undefined }} />
-              {group.label}
-              <span
-                className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
-                style={{ background: `${group.color}25`, color: group.color }}
-              >
-                {categoryCounts[key as keyof typeof categoryCounts]}
-              </span>
-            </motion.button>
-          );
-        })}
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white/[0.01] border border-white/5 rounded-xl p-4 flex flex-col md:flex-row justify-between gap-4 items-center">
-        <div className="relative w-full md:w-80 group">
-          <input
-            type="text" placeholder="Search by name, email, team…" value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-slate-950/40 border border-white/5 rounded-lg py-2.5 pl-11 pr-4 text-xs text-white focus:outline-none focus:border-blue-500/40 transition-all"
-          />
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-400" />
-        </div>
-
-        <div className="flex items-center gap-2 text-xs text-slate-400 bg-slate-950/40 border border-white/5 px-3 py-2 rounded-lg w-full md:w-auto justify-between">
-          <span className="font-bold uppercase tracking-wider text-slate-500">Role:</span>
-          <select
-            value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}
-            className="bg-transparent text-white font-bold focus:outline-none cursor-pointer text-xs ml-2"
-          >
-            <option value="All" className="bg-slate-950">All roles</option>
-            {ROLE_ORDER.map(r => <option key={r} value={r} className="bg-slate-950">{r}</option>)}
-          </select>
-        </div>
-      </div>
-
-      {/* Column headers */}
-      <div className="hidden lg:grid grid-cols-12 gap-4 px-9 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-        <div className="col-span-4">Identity</div>
-        <div className="col-span-2">Role</div>
-        <div className="col-span-2">Team</div>
-        <div className="col-span-2">Status</div>
-        <div className="col-span-2 text-right pr-6">Actions</div>
-      </div>
-
-      {/* Member rows */}
-      <div className="space-y-3">
-        {loading && (
-          <div className="p-16 text-center flex flex-col items-center justify-center gap-2 bg-white/[0.01] border border-white/5 rounded-xl">
-            <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-            <span className="text-xs text-slate-400">Loading members…</span>
-          </div>
-        )}
-
-        {!loading && paginatedMembers.length === 0 && (
-          <div className="p-12 text-center text-xs text-slate-500 bg-white/[0.01] border border-white/5 rounded-xl">
-            No members match your search or filter.
-          </div>
-        )}
-
-        <AnimatePresence mode="popLayout">
-          {!loading && paginatedMembers.map((member) => {
-            const meta = ROLE_META[member.role] || ROLE_META.TeamMember;
-            const RankIcon = meta.Icon;
-            const isSelf = member._id === actor.id;
-            const isBusy = busyId === member._id;
-
-            return (
-              <motion.div
-                layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                key={member._id}
-                className="border p-4 rounded-xl grid grid-cols-1 lg:grid-cols-12 gap-4 items-start lg:items-center transition-all duration-200 relative overflow-hidden px-5 lg:px-8 border-white/5 bg-white/[0.01]"
-                style={{ borderColor: `${meta.color}30` }}
-              >
-                <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: meta.color }} />
-
-                {/* Identity */}
-                <div className="col-span-1 lg:col-span-4 flex items-center gap-3.5 min-w-0">
-                  <div className="w-10 h-10 rounded-lg flex-shrink-0 flex items-center justify-center font-black text-sm shadow-inner"
-                    style={{ background: `${meta.color}20`, color: meta.color }}>
-                    {member.name ? member.name.charAt(0).toUpperCase() : 'U'}
-                  </div>
-                  <div className="min-w-0 truncate">
-                    <h4 className="font-bold text-sm text-white flex items-center gap-1.5 truncate">
-                      {member.name}
-                      {isSelf && <span className="text-[9px] bg-white/10 text-gray-400 px-1.5 py-0.5 rounded-full font-medium">You</span>}
-                    </h4>
-                    <span className="text-xs text-slate-400 flex items-center gap-1 mt-0.5 truncate">
-                      <Mail className="w-3 h-3 text-slate-600 flex-shrink-0" /> {member.email}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Role */}
-                <div className="col-span-1 lg:col-span-2 flex flex-col lg:block">
-                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider lg:hidden mb-0.5">Role</span>
-                  <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: meta.color }}>
-                    <RankIcon className="w-3.5 h-3.5 flex-shrink-0" /> {member.role}
-                  </span>
-                </div>
-
-                {/* Team */}
-                <div className="col-span-1 lg:col-span-2 flex flex-col lg:block">
-                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider lg:hidden mb-0.5">Team</span>
-                  <span className="text-xs font-semibold text-slate-300 flex items-center gap-1">
-                    <Briefcase className="w-3 h-3 text-slate-500 flex-shrink-0" /> {member.team || '—'}
-                  </span>
-                </div>
-
-                {/* Status */}
-                <div className="col-span-1 lg:col-span-2 flex flex-col lg:block">
-                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-wider lg:hidden mb-0.5">Status</span>
-                  <button
-                    onClick={() => handleToggleStatus(member)}
-                    disabled={!canManage || isSelf || isBusy}
-                    title={isSelf ? "You can't change your own status" : canManage ? 'Click to toggle' : 'No permission'}
-                    className={`text-xs font-bold flex items-center gap-1 transition-opacity ${
-                      member.status === 'inactive' ? 'text-rose-400' : 'text-emerald-400'
-                    } ${canManage && !isSelf ? 'hover:opacity-70 cursor-pointer' : 'cursor-default opacity-80'}`}
-                  >
-                    {isBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : member.status === 'inactive' ? <XCircle className="w-3 h-3" /> : <CheckCircle className="w-3 h-3" />}
-                    {member.status || 'active'}
+          {/* Team header */}
+          <div className="bg-white/[0.02] border border-white/5 rounded-2xl overflow-hidden backdrop-blur-xl">
+            <div className="relative h-36 bg-gradient-to-br from-blue-500/25 via-indigo-500/15 to-purple-500/10">
+              {selectedTeam.coverImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={selectedTeam.coverImage} alt={selectedTeam.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center"><Users className="w-10 h-10 text-white/20" /></div>
+              )}
+              <div className="absolute top-3 right-3 flex items-center gap-2">
+                <StatusBadge active={selectedTeam.isActive !== false} />
+                {canManageMembers && !selectedTeam.synthetic && (
+                  <button onClick={() => setShowEditTeam(true)}
+                    className="flex items-center gap-1.5 text-[11px] font-bold text-white bg-black/40 hover:bg-black/60 border border-white/20 px-3 py-1.5 rounded-lg backdrop-blur">
+                    <Settings2 className="w-3.5 h-3.5" /> Edit team
                   </button>
+                )}
+              </div>
+            </div>
+
+            <div className="p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+              <div className="min-w-0">
+                <h1 className="text-2xl font-black text-white flex items-center gap-2">{selectedTeam.name}</h1>
+                <p className="text-xs text-slate-400 mt-1 max-w-xl">{selectedTeam.description || 'No description provided.'}</p>
+                <div className="flex items-center gap-2 mt-3">
+                  {selectedTeam.lead ? (
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                      <Avatar src={selectedTeam.lead.profileImage} name={selectedTeam.lead.name} color="#34d399" size={22} />
+                      <span className="text-[11px] font-bold text-emerald-300">{selectedTeam.lead.name}</span>
+                      <span className="text-[9px] text-emerald-500/80 font-semibold uppercase">Leader</span>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-slate-500 flex items-center gap-1.5"><Award className="w-3.5 h-3.5" /> No leader assigned</span>
+                  )}
+                  <span className="text-[11px] text-slate-500 flex items-center gap-1"><Calendar className="w-3 h-3" /> Created {fmtDate(selectedTeam.createdAt)}</span>
                 </div>
-
-                {/* Actions */}
-                <div className="col-span-1 lg:col-span-2 flex lg:flex-row items-center justify-between lg:justify-end gap-3 w-full border-t lg:border-t-0 border-white/5 pt-3 lg:pt-0">
-                  <span className="text-xs text-slate-400 lg:hidden">{member.createdAt ? new Date(member.createdAt).toLocaleDateString() : 'N/A'}</span>
-                  <div className="flex items-center gap-1.5">
-                    {canManage && (
-                      <button
-                        onClick={() => setPromoting(member)}
-                        title="Change role"
-                        className="p-2 text-slate-400 hover:text-blue-400 hover:bg-blue-500/10 rounded-md transition-all"
-                      >
-                        <ArrowUpCircle className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    <button
-                      onClick={() => canManage && setEditing(member)}
-                      disabled={!canManage}
-                      title={canManage ? 'Edit' : 'No permission'}
-                      className="p-2 text-slate-400 hover:text-white hover:bg-white/5 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(member)}
-                      disabled={!canManage || isSelf || isBusy}
-                      title={isSelf ? "You can't delete yourself" : canManage ? 'Delete' : 'No permission'}
-                      className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-500/5 rounded-md transition-all disabled:opacity-30 disabled:cursor-not-allowed"
-                    >
-                      {isBusy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </AnimatePresence>
-
-        {search === '' && filteredMembers.length > visibleCount && (
-          <div className="flex justify-center pt-2">
-            <button
-              onClick={() => setVisibleCount(prev => prev + 8)}
-              className="flex items-center gap-1.5 px-5 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-bold text-slate-300 transition-all border border-white/10"
-            >
-              Show more <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Create member modal */}
-      <AnimatePresence>
-        {showModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowModal(false)} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
-              className="relative w-full max-w-md bg-zinc-950 border border-white/10 rounded-2xl p-6 shadow-2xl z-10"
-            >
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-xl font-bold text-white">Add new member</h2>
-                <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white text-xs">✕</button>
               </div>
 
-              <form onSubmit={(e) => e.preventDefault()} autoComplete="off" className="space-y-4">
-                <input type="text" className="hidden" aria-hidden="true" autoComplete="false" />
-                <input type="password" className="hidden" aria-hidden="true" autoComplete="false" />
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Full name</label>
-                  <input
-                    type="text" placeholder="Enter full name" value={formData.name} autoComplete="new-unique-name"
-                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Email</label>
-                  <input
-                    type="email" placeholder="name@domain.com" value={formData.email} autoComplete="new-unique-email"
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Password</label>
-                  <input
-                    type="password" placeholder="••••••••" value={formData.password} autoComplete="new-password"
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Role</label>
-                    <select
-                      value={formData.role} onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                      className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 cursor-pointer"
-                    >
-                      <option value="PI" className="bg-zinc-950">PI (Faculty)</option>
-                      <option value="President" className="bg-zinc-950">President</option>
-                      <option value="OfficeBearer" className="bg-zinc-950">Office Bearer</option>
-                      <option value="TeamLeader" className="bg-zinc-950">Team Leader</option>
-                      <option value="TeamMember" className="bg-zinc-950">Team Member</option>
-                      <option value="Alumni" className="bg-zinc-950">Alumni</option>
-                    </select>
+              {/* Statistics */}
+              <div className="grid grid-cols-5 gap-2 shrink-0">
+                {[
+                  { Icon: Users, label: 'Total', value: selectedTeam.totalMembers ?? teamMembers.length },
+                  { Icon: UserCheck, label: 'Active', value: selectedTeam.activeMembers ?? teamMembers.filter(m => m.status === 'active').length },
+                  { Icon: FolderOpen, label: 'Resources', value: selectedTeam.resources ?? 0 },
+                  { Icon: FileText, label: 'Blogs', value: selectedTeam.blogs ?? 0 },
+                  { Icon: Calendar, label: 'Events', value: selectedTeam.events ?? 0 },
+                ].map(s => (
+                  <div key={s.label} className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg bg-white/[0.02] border border-white/[0.05] min-w-[58px]">
+                    <s.Icon className="w-4 h-4 text-slate-400" />
+                    <span className="text-lg font-black text-white leading-none">{s.value}</span>
+                    <span className="text-[8px] font-bold text-slate-500 uppercase tracking-wide">{s.label}</span>
                   </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Team</label>
-                    <select
-                      value={formData.team} disabled={formData.role === 'PI'}
-                      onChange={(e) => setFormData({ ...formData, team: e.target.value })}
-                      className={`w-full p-2.5 rounded-lg bg-white/5 border text-xs focus:outline-none cursor-pointer transition-all ${
-                        formData.role === 'PI'
-                          ? 'border-purple-500/30 text-purple-400 font-medium bg-purple-950/20 cursor-not-allowed'
-                          : 'border-white/10 text-white focus:border-blue-500'
-                      }`}
-                    >
-                      {formData.role === 'PI' ? (
-                        <option value="Institutional Head / Faculty" className="bg-zinc-950">Faculty Authority</option>
-                      ) : (
-                        existingTeams.map(t => <option key={t} value={t} className="bg-zinc-950">{t}</option>)
-                      )}
-                    </select>
-                  </div>
-                </div>
-
-                <motion.button
-                  whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }} type="button"
-                  onClick={handleCreateMember}
-                  className="w-full mt-2 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs shadow-md transition-all border border-blue-400/20"
-                >
-                  Create member
-                </motion.button>
-              </form>
-            </motion.div>
+                ))}
+              </div>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+
+          {/* Member controls */}
+          <div className="flex flex-col md:flex-row justify-between gap-4 items-center">
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-black text-white flex items-center gap-2"><Users className="w-4 h-4 text-blue-400" /> Members
+                <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded-full">{teamMembers.length}</span>
+              </h2>
+              {canManageMembers && (
+                <button onClick={() => setShowAddMember(true)}
+                  className="flex items-center gap-1.5 text-[11px] font-bold text-blue-400 hover:text-blue-300 bg-blue-500/10 border border-blue-500/20 px-3 py-1.5 rounded-lg">
+                  <UserPlus className="w-3.5 h-3.5" /> Add member
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <div className="relative flex-1 md:w-64 group">
+                <input type="text" placeholder="Search members…" value={memberSearch}
+                  onChange={e => setMemberSearch(e.target.value)}
+                  className="w-full bg-slate-950/40 border border-white/5 rounded-lg py-2.5 pl-10 pr-4 text-xs text-white focus:outline-none focus:border-blue-500/40" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-400" />
+              </div>
+              <div className="relative">
+                <select value={roleFilter} onChange={e => setRoleFilter(e.target.value)}
+                  className="appearance-none bg-slate-950/40 border border-white/5 rounded-lg py-2.5 pl-3 pr-8 text-xs text-white font-bold focus:outline-none focus:border-blue-500/40 cursor-pointer">
+                  <option value="All" className="bg-slate-950">All roles</option>
+                  {ALL_ROLES.map(r => <option key={r} value={r} className="bg-slate-950">{r}</option>)}
+                </select>
+                <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500 pointer-events-none" />
+              </div>
+            </div>
+          </div>
+
+          {/* Member list */}
+          <div className="space-y-3">
+            {filteredMembers.length === 0 ? (
+              <div className="p-12 text-center text-xs text-slate-500 bg-white/[0.01] border border-white/5 rounded-xl">
+                No members match your search or filter.
+              </div>
+            ) : (
+              <AnimatePresence mode="popLayout">
+                {visibleMembers.map(member => (
+                  <MemberRow key={member._id} member={member} actor={actor}
+                    canManageMembers={canManageMembers} canManageRoles={canManageRoles} busyId={busyId}
+                    onToggle={handleToggleStatus} onDelete={handleDelete}
+                    onEdit={setEditing} onPromote={setPromoting} onPermissions={setPermMember} />
+                ))}
+              </AnimatePresence>
+            )}
+
+            {!memberSearch && roleFilter === 'All' && filteredMembers.length > 8 && (
+              <div className="flex justify-center pt-2">
+                {visibleCount < filteredMembers.length ? (
+                  <button onClick={() => setVisibleCount(c => c + 8)}
+                    className="flex items-center gap-1.5 px-5 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-bold text-slate-300 transition-all border border-white/10">
+                    See more <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <button onClick={() => setVisibleCount(8)}
+                    className="flex items-center gap-1.5 px-5 py-2 bg-white/5 hover:bg-white/10 rounded-lg text-xs font-bold text-slate-300 transition-all border border-white/10">
+                    See less <ChevronDown className="w-3.5 h-3.5 rotate-180" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }

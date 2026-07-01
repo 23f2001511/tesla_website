@@ -2,91 +2,95 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { User } from '@/models/User';
 import bcrypt from 'bcryptjs';
-import { getAuthPayload, requireRole } from '@/lib/auth';
+import { getAuthPayload } from '@/lib/auth';
+import { TL_PERMISSION_KEYS } from '@/lib/permissions';
 
-// Roles that may promote/demote/delete other members.
-// Mirrors the same pattern used for alumni management.
-const MEMBER_MANAGERS = ['Admin', 'President'];
+// Roles that may create/edit/delete/toggle members across teams.
+const MEMBER_MANAGERS = ['Admin', 'President', 'OfficeBearer'];
+// Roles that may change another member's role (promote/demote).
+const ROLE_MANAGERS = ['Admin', 'President'];
+// Restricted Team-Leader features (stored on User.permissions). Locked until granted.
+// Single source of truth shared with the teams API and the Team-Leader dashboard.
+const TL_PERMISSIONS = TL_PERMISSION_KEYS;
 
-function canManageMembers(role: string | null | undefined) {
+function canManageMembers(role?: string | null) {
   return !!role && MEMBER_MANAGERS.includes(role);
 }
-
-// PI has one narrow extra power: promote a member directly to OfficeBearer.
-// This does NOT grant edit/delete/status-toggle on members in general.
-function canPromoteToOfficeBearer(actorRole: string | null | undefined, targetRole: string) {
-  return actorRole === 'PI' && targetRole === 'OfficeBearer';
+function canManageRoles(role?: string | null) {
+  return !!role && ROLE_MANAGERS.includes(role);
+}
+function hasPerm(doc: any, perm: string) {
+  return Array.isArray(doc?.permissions) && doc.permissions.includes(perm);
 }
 
+// ─── GET: list members (scoped for Team Leaders) ──────────────────────────────
 export async function GET() {
   try {
-    const { response: authError } = await requireRole(['Admin', 'President']);
-    if (authError) return authError;
+    const actor = await getAuthPayload();
+    if (!actor) return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
 
     await connectDB();
 
-    const members = await User.find({})
-      .select('-password')
-      .sort({ createdAt: -1 });
+    const actorDoc: any = await User.findById(actor.userId).select('role team').lean();
+    const role = actorDoc?.role;
+    const isLeader = role === 'TeamLeader';
 
-    return NextResponse.json(
-      {
-        success: true,
-        count: members.length,
-        members
-      },
-      { status: 200 }
-    );
+    if (!canManageMembers(role) && !isLeader) {
+      return NextResponse.json({ success: false, message: 'Forbidden' }, { status: 403 });
+    }
+
+    // Team Leaders only ever see their own team's members.
+    const query = isLeader ? { team: actorDoc?.team || '__none__' } : {};
+
+    const members = await User.find(query).select('-password').sort({ createdAt: -1 });
+
+    return NextResponse.json({ success: true, count: members.length, members }, { status: 200 });
   } catch (error) {
     console.error('Members Fetch Error:', error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        message: 'Failed to fetch members'
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, message: 'Failed to fetch members' }, { status: 500 });
   }
 }
 
+// ─── POST: create a member ────────────────────────────────────────────────────
 export async function POST(req: Request) {
   try {
-    const { response: authError } = await requireRole(['Admin', 'President']);
-    if (authError) return authError;
+    const actor = await getAuthPayload();
+    if (!actor) return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
 
     await connectDB();
 
-    const {
-      name,
-      email,
-      password,
-      role,
-      team,
-      designation,
-      permissions
-    } = await req.json();
+    const actorDoc: any = await User.findById(actor.userId).select('role team permissions').lean();
+    const actorRole = actorDoc?.role;
+
+    const body = await req.json();
+    let { role, team } = body;
+    const { name, email, password, designation, permissions } = body;
+
+    const isManager = canManageMembers(actorRole);
+    const isScopedLeader = actorRole === 'TeamLeader' && hasPerm(actorDoc, 'members:create');
+
+    if (!isManager && !isScopedLeader) {
+      return NextResponse.json({ success: false, message: 'You do not have permission to add members.' }, { status: 403 });
+    }
+
+    // A Team Leader can only ever add a plain member to their OWN team.
+    if (!isManager && isScopedLeader) {
+      team = actorDoc?.team || '';
+      role = 'TeamMember';
+    }
+
+    // PI can never be assigned from the dashboard.
+    if (role === 'PI') {
+      return NextResponse.json({ success: false, message: 'Members cannot be assigned the PI role.' }, { status: 400 });
+    }
 
     if (!name || !email || !password) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Name, email and password are required'
-        },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message: 'Name, email and password are required' }, { status: 400 });
     }
 
     const existingUser = await User.findOne({ email });
-
     if (existingUser) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'User already exists'
-        },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message: 'User already exists' }, { status: 400 });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -98,219 +102,166 @@ export async function POST(req: Request) {
       role: role || 'TeamMember',
       team: team || '',
       designation: designation || '',
-      permissions: permissions || [],
+      permissions: isManager ? (permissions || []) : [],
       status: 'active',
-      isVerified: false
+      isVerified: false,
     });
 
-    return NextResponse.json(
-      {
-        success: true,
-        message: 'Member created successfully',
-        member: newUser
-      },
-      { status: 201 }
-    );
+    return NextResponse.json({ success: true, message: 'Member created successfully', member: newUser }, { status: 201 });
   } catch (error) {
     console.error('Create Member Error:', error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        message: 'Failed to create member'
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, message: 'Failed to create member' }, { status: 500 });
   }
 }
 
-// ─── PATCH: promote/demote, edit details, or toggle active status ────────────
-// body: { id, action: 'updateRole' | 'updateDetails' | 'toggleStatus', ...fields }
+// ─── PATCH: updateRole | updateDetails | toggleStatus | setPermissions ─────────
 // The actor's identity/role is taken from the verified JWT, never the request body.
 export async function PATCH(req: Request) {
   try {
     const actor = await getAuthPayload();
-    if (!actor) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-    const actorRole = actor.role;
-    const actorId = actor.userId;
+    if (!actor) return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
 
     await connectDB();
+
+    const actorDoc: any = await User.findById(actor.userId).select('role team permissions').lean();
+    const actorRole = actorDoc?.role;
+    const actorId = actor.userId;
 
     const body = await req.json();
     const { id, action, role } = body;
 
-    const isStandardManager = canManageMembers(actorRole);
-    const isPIPromotion = action === 'updateRole' && canPromoteToOfficeBearer(actorRole, role);
-
-    if (!isStandardManager && !isPIPromotion) {
-      return NextResponse.json(
-        { success: false, message: 'You do not have permission to manage members.' },
-        { status: 403 }
-      );
-    }
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, message: 'Member id is required' },
-        { status: 400 }
-      );
-    }
+    if (!id) return NextResponse.json({ success: false, message: 'Member id is required' }, { status: 400 });
 
     const target = await User.findById(id);
-    if (!target) {
-      return NextResponse.json(
-        { success: false, message: 'Member not found' },
-        { status: 404 }
-      );
-    }
+    if (!target) return NextResponse.json({ success: false, message: 'Member not found' }, { status: 404 });
 
-    // ── Promote / demote (change role) ──
+    const isManager = canManageMembers(actorRole);
+    const isLeader = actorRole === 'TeamLeader';
+    const leaderOwnsTarget = isLeader && actorDoc?.team && target.team === actorDoc.team;
+
+    // ── Promote / demote (change role) — managers only, never to PI ──
     if (action === 'updateRole') {
-      const validRoles = ['Admin', 'PI', 'President', 'OfficeBearer', 'TeamLeader', 'TeamMember', 'Alumni'];
-
+      if (!canManageRoles(actorRole)) {
+        return NextResponse.json({ success: false, message: 'You do not have permission to change roles.' }, { status: 403 });
+      }
+      const validRoles = ['Admin', 'President', 'OfficeBearer', 'TeamLeader', 'TeamMember', 'Alumni'];
       if (!role || !validRoles.includes(role)) {
-        return NextResponse.json(
-          { success: false, message: 'A valid role is required' },
-          { status: 400 }
-        );
+        return NextResponse.json({ success: false, message: 'A valid role is required' }, { status: 400 });
       }
-
-      // PI's permission is narrow: only ever allowed to set role -> OfficeBearer.
-      if (actorRole === 'PI' && role !== 'OfficeBearer') {
-        return NextResponse.json(
-          { success: false, message: 'PI can only promote members to Office Bearer.' },
-          { status: 403 }
-        );
+      if (role === 'PI') {
+        return NextResponse.json({ success: false, message: 'Members cannot be promoted to PI.' }, { status: 400 });
       }
-
-      // Guard: don't let an Admin accidentally strip their own Admin role and lock themselves out.
       if (actorId && String(actorId) === String(id) && actorRole === 'Admin' && role !== 'Admin') {
-        return NextResponse.json(
-          { success: false, message: 'You cannot change your own Admin role.' },
-          { status: 400 }
-        );
+        return NextResponse.json({ success: false, message: 'You cannot change your own Admin role.' }, { status: 400 });
       }
 
       target.role = role;
-      // Keep status consistent: promoting out of Alumni should restore active status.
       if (role !== 'Alumni' && target.status === 'alumni') target.status = 'active';
       if (role === 'Alumni') target.status = 'alumni';
+      // Demoting out of TeamLeader strips the restricted features.
+      if (role !== 'TeamLeader') {
+        target.permissions = (target.permissions || []).filter((p: string) => !TL_PERMISSIONS.includes(p));
+      }
 
       await target.save();
+      return NextResponse.json({ success: true, message: `${target.name} is now ${role}.`, member: target }, { status: 200 });
+    }
 
-      return NextResponse.json(
-        { success: true, message: `${target.name} is now ${role}.`, member: target },
-        { status: 200 }
-      );
+    // ── Grant / revoke Team-Leader permissions & lock/unlock features ──
+    // body: { id, action: 'setPermissions', permissions: string[], makeLeader?: boolean, revoke?: boolean }
+    if (action === 'setPermissions') {
+      if (!isManager) {
+        return NextResponse.json({ success: false, message: 'You do not have permission to manage permissions.' }, { status: 403 });
+      }
+      const { permissions, makeLeader, revoke } = body;
+      if (!Array.isArray(permissions)) {
+        return NextResponse.json({ success: false, message: 'permissions must be an array' }, { status: 400 });
+      }
+      // Keep any non-TL permissions intact; only the TL feature set is managed here.
+      const preserved = (target.permissions || []).filter((p: string) => !TL_PERMISSIONS.includes(p));
+      const tlGranted = permissions.filter((p: string) => TL_PERMISSIONS.includes(p));
+      target.permissions = Array.from(new Set([...preserved, ...tlGranted]));
+
+      if (makeLeader && target.role !== 'TeamLeader') target.role = 'TeamLeader';
+      if (revoke && target.role === 'TeamLeader') target.role = 'TeamMember';
+
+      await target.save();
+      return NextResponse.json({ success: true, message: 'Permissions updated.', member: target }, { status: 200 });
     }
 
     // ── Edit name / team / designation ──
     if (action === 'updateDetails') {
+      if (!isManager && !(isLeader && hasPerm(actorDoc, 'team:edit') && leaderOwnsTarget)) {
+        return NextResponse.json({ success: false, message: 'You do not have permission to edit this member.' }, { status: 403 });
+      }
       const { name, team, designation } = body;
       if (name !== undefined) target.name = name;
-      if (team !== undefined) target.team = team;
+      // Team Leaders can never move a member into a different team.
+      if (team !== undefined && isManager) target.team = team;
       if (designation !== undefined) target.designation = designation;
 
       await target.save();
-
-      return NextResponse.json(
-        { success: true, message: 'Member details updated.', member: target },
-        { status: 200 }
-      );
+      return NextResponse.json({ success: true, message: 'Member details updated.', member: target }, { status: 200 });
     }
 
     // ── Toggle active / inactive ──
     if (action === 'toggleStatus') {
-      if (actorId && String(actorId) === String(id)) {
-        return NextResponse.json(
-          { success: false, message: 'You cannot change your own status.' },
-          { status: 400 }
-        );
+      if (!isManager && !(isLeader && hasPerm(actorDoc, 'team:edit') && leaderOwnsTarget)) {
+        return NextResponse.json({ success: false, message: 'You do not have permission to change this member.' }, { status: 403 });
       }
-
+      if (actorId && String(actorId) === String(id)) {
+        return NextResponse.json({ success: false, message: 'You cannot change your own status.' }, { status: 400 });
+      }
       target.status = target.status === 'inactive' ? 'active' : 'inactive';
       await target.save();
-
-      return NextResponse.json(
-        { success: true, message: `${target.name} is now ${target.status}.`, member: target },
-        { status: 200 }
-      );
+      return NextResponse.json({ success: true, message: `${target.name} is now ${target.status}.`, member: target }, { status: 200 });
     }
 
-    return NextResponse.json(
-      { success: false, message: 'Unknown action' },
-      { status: 400 }
-    );
+    return NextResponse.json({ success: false, message: 'Unknown action' }, { status: 400 });
   } catch (error) {
     console.error('Update Member Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Failed to update member' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, message: 'Failed to update member' }, { status: 500 });
   }
 }
 
-// ─── DELETE: remove a member entirely ─────────────────────────────────────────
+// ─── DELETE: remove a member ──────────────────────────────────────────────────
 export async function DELETE(req: Request) {
   try {
     await connectDB();
 
     const actor = await getAuthPayload();
-    if (!actor) {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-    const actorRole = actor.role;
+    if (!actor) return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+
+    const actorDoc: any = await User.findById(actor.userId).select('role team permissions').lean();
+    const actorRole = actorDoc?.role;
     const actorId = actor.userId;
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ success: false, message: 'Member id is required' }, { status: 400 });
 
-    if (!canManageMembers(actorRole)) {
-      return NextResponse.json(
-        { success: false, message: 'You do not have permission to manage members.' },
-        { status: 403 }
-      );
-    }
+    const target = await User.findById(id).select('team');
+    if (!target) return NextResponse.json({ success: false, message: 'Member not found' }, { status: 404 });
 
-    if (!id) {
-      return NextResponse.json(
-        { success: false, message: 'Member id is required' },
-        { status: 400 }
-      );
+    const isManager = canManageMembers(actorRole);
+    const leaderCanRemove =
+      actorRole === 'TeamLeader' &&
+      hasPerm(actorDoc, 'members:delete') &&
+      actorDoc?.team &&
+      target.team === actorDoc.team;
+
+    if (!isManager && !leaderCanRemove) {
+      return NextResponse.json({ success: false, message: 'You do not have permission to remove this member.' }, { status: 403 });
     }
 
     if (actorId && actorId === id) {
-      return NextResponse.json(
-        { success: false, message: 'You cannot delete your own account.' },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message: 'You cannot delete your own account.' }, { status: 400 });
     }
 
-    const deleted = await User.findByIdAndDelete(id);
-    if (!deleted) {
-      return NextResponse.json(
-        { success: false, message: 'Member not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(
-      { success: true, message: 'Member removed.' },
-      { status: 200 }
-    );
+    await User.findByIdAndDelete(id);
+    return NextResponse.json({ success: true, message: 'Member removed.' }, { status: 200 });
   } catch (error) {
     console.error('Delete Member Error:', error);
-    return NextResponse.json(
-      { success: false, message: 'Failed to delete member' },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, message: 'Failed to delete member' }, { status: 500 });
   }
 }

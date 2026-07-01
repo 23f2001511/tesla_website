@@ -151,6 +151,19 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const { id, action } = body; // action: 'approve' | 'reject'
 
+    // ── Featured-only toggle ──────────────────────────────────────────────
+    if (id && typeof body.isFeatured === 'boolean' && action === undefined) {
+      const updated = await Event.findByIdAndUpdate(
+        id,
+        { $set: { isFeatured: body.isFeatured } },
+        { new: true }
+      );
+      if (!updated) {
+        return NextResponse.json({ error: 'Event allocation layout missed' }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, event: updated }, { status: 200 });
+    }
+
     if (!id || !['approve', 'reject'].includes(action)) {
       return NextResponse.json({ error: 'Invalid id or action parameter payload' }, { status: 400 });
     }

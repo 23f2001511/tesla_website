@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef, useMemo, memo } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   Calendar, Plus, RefreshCw, Search, MapPin, Clock,
-  ChevronDown, Eye, Trash2, CheckCircle2,
+  ChevronDown, ChevronUp, Eye, Trash2, CheckCircle2,
   AlertCircle, BarChart3, Star, X, Check, Ban,
   Bell, User, FileText, Loader2, CalendarPlus, Inbox, Tag
 } from 'lucide-react';
@@ -22,6 +22,7 @@ interface ClubEvent {
   venue: string;
   category: string;
   speaker: string;
+  poster: string;
   seatLimit: number;
   isFeatured: boolean;
 
@@ -44,6 +45,23 @@ function fmtDate(d: string) {
 }
 function fmtTime(d: string) {
   return new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+}
+
+// Cover-image thumbnail with gradient fallback (keeps row height compact)
+function Thumb({ src, alt, size = 56 }: { src?: string; alt: string; size?: number }) {
+  return (
+    <div
+      className="rounded-lg overflow-hidden flex-shrink-0 bg-gradient-to-br from-indigo-500/25 to-violet-500/15 border border-white/[0.08] flex items-center justify-center"
+      style={{ width: size, height: size }}
+    >
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={alt} className="w-full h-full object-cover" />
+      ) : (
+        <Calendar className="w-4 h-4 text-indigo-300/70" />
+      )}
+    </div>
+  );
 }
 
 // ─── API ───────────────────────────────────────────────────────────────────────
@@ -455,11 +473,12 @@ function ViewEventModal({ event, onClose }: { event: ClubEvent; onClose: () => v
 
 // ─── Event Table Row ───────────────────────────────────────────────────────────
 const EventRow = memo(function EventRow({
-  event, index, onView, onDelete,
+  event, index, onView, onDelete, onToggleFeatured,
 }: {
   event: ClubEvent; index: number;
   onView: (e: ClubEvent) => void;
   onDelete: (id: string) => void;
+  onToggleFeatured: (id: string, isFeatured: boolean) => void;
 }) {
   const [deleting, setDeleting] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -483,24 +502,29 @@ const EventRow = memo(function EventRow({
       className="transition-colors text-xs text-gray-300"
       style={{ background: hovered ? 'rgba(255,255,255,0.02)' : 'transparent' }}
     >
-      <td className="px-4 py-3 align-middle border-b border-white/[0.04]">
-        <div className="flex items-center gap-2">
-          <span className="text-[13px] font-semibold text-gray-100">{event.title}</span>
-          {event.isFeatured && <Star className="w-3 h-3 text-amber-400 fill-amber-400 flex-shrink-0" />}
+      <td className="px-4 py-2 align-middle border-b border-white/[0.04]">
+        <div className="flex items-center gap-3">
+          <Thumb src={event.poster} alt={event.title} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[13px] font-semibold text-gray-100 truncate max-w-[180px]">{event.title}</span>
+              {event.isFeatured && <Star className="w-3 h-3 text-amber-400 fill-amber-400 flex-shrink-0" />}
+            </div>
+            <p className="text-[11px] text-gray-500 mt-0.5 max-w-[200px] truncate">{event.description}</p>
+          </div>
         </div>
-        <p className="text-[11px] text-gray-500 mt-0.5 max-w-[200px] truncate">{event.description}</p>
       </td>
-      <td className="px-4 py-3 align-middle border-b border-white/[0.04]">
+      <td className="px-4 py-2 align-middle border-b border-white/[0.04]">
         <p className="text-[13px] text-gray-300">{fmtDate(event.date)}</p>
         <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
           <Clock className="w-2.5 h-2.5" />{fmtTime(event.date)}
         </p>
       </td>
-      <td className="px-4 py-3 align-middle border-b border-white/[0.04]">
+      <td className="px-4 py-2 align-middle border-b border-white/[0.04]">
         <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-300">{event.category}</span>
       </td>
       
-      <td className="px-4 py-3 align-middle border-b border-white/[0.04]">
+      <td className="px-4 py-2 align-middle border-b border-white/[0.04]">
         <span className={`inline-flex items-center gap-1.5 text-[0.7rem] font-semibold px-2.5 py-1 rounded-full border ${
           event.isUpcoming
             ? 'bg-indigo-500/10 text-indigo-400 border-indigo-500/25'
@@ -510,29 +534,29 @@ const EventRow = memo(function EventRow({
           {event.isUpcoming ? 'Upcoming' : 'Completed'}
         </span>
       </td>
-      <td className="px-4 py-3 align-middle border-b border-white/[0.04]">
+      <td className="px-4 py-2 align-middle border-b border-white/[0.04]">
         <p className="text-[13px] text-gray-300">{event.speaker || '—'}</p>
         <p className="text-[11px] text-gray-500 flex items-center gap-1 mt-0.5">
           <MapPin className="w-2.5 h-2.5" />{event.venue}
         </p>
       </td>
-      <td className="px-4 py-3 align-middle border-b border-white/[0.04]">
+      <td className="px-4 py-2 align-middle border-b border-white/[0.04]">
         <div className="flex items-center gap-1.5">
-          {[
-            { Icon: Eye, title: 'View', danger: false, onClick: () => onView(event) },
-            { Icon: Trash2, title: 'Delete', danger: true, onClick: handleDelete, loading: deleting },
-          ].map(({ Icon, title, danger, onClick, loading }) => (
+          <button
+            title="View" onClick={() => onView(event)}
+            className="w-7 h-7 rounded-lg border border-white/[0.07] text-gray-500 hover:bg-indigo-500/10 hover:border-indigo-500/30 hover:text-indigo-400 flex items-center justify-center transition-all cursor-pointer"
+          ><Eye className="w-3 h-3" /></button>
+          {event.approvalStatus === 'approved' && (
             <button
-              key={title} title={title} onClick={onClick} disabled={loading}
-              className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-all ${
-                danger
-                  ? 'border-white/[0.07] text-red-400 hover:bg-red-500/10 hover:border-red-500/30'
-                  : 'border-white/[0.07] text-gray-500 hover:bg-indigo-500/10 hover:border-indigo-500/30 hover:text-indigo-400'
-              } ${loading ? 'opacity-40 cursor-wait' : 'cursor-pointer'}`}
-            >
-              {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Icon className="w-3 h-3" />}
-            </button>
-          ))}
+              title={event.isFeatured ? 'Remove Featured' : 'Mark Featured'}
+              onClick={() => onToggleFeatured(event.id, !event.isFeatured)}
+              className={`w-7 h-7 rounded-lg border border-white/[0.07] flex items-center justify-center transition-all cursor-pointer ${event.isFeatured ? 'text-amber-400 bg-amber-500/10' : 'text-gray-500 hover:text-amber-400 hover:bg-amber-500/10'}`}
+            ><Star className={`w-3 h-3 ${event.isFeatured ? 'fill-amber-400' : ''}`} /></button>
+          )}
+          <button
+            title="Delete" onClick={handleDelete} disabled={deleting}
+            className={`w-7 h-7 rounded-lg border border-white/[0.07] text-red-400 hover:bg-red-500/10 hover:border-red-500/30 flex items-center justify-center transition-all ${deleting ? 'opacity-40 cursor-wait' : 'cursor-pointer'}`}
+          >{deleting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}</button>
         </div>
       </td>
     </motion.tr>
@@ -551,8 +575,10 @@ export default function AdminEventsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [viewEvent, setViewEvent] = useState<ClubEvent | null>(null);
   const [reviewRequest, setReviewRequest] = useState<ClubEvent | null>(null);
-  const [activeTab, setActiveTab] = useState<'events' | 'requests'>('events');
+  const [activeTab, setActiveTab] = useState<'all' | 'published' | 'pending'>('all');
+  const [expanded, setExpanded] = useState(false);
   const lastFetch = useRef(0);
+  const ROW_LIMIT = 8;
   const prefersReducedMotion = useReducedMotion();
 
   const loadData = useCallback(async (isRefresh = false) => {
@@ -600,8 +626,27 @@ export default function AdminEventsPage() {
   }, [loadData]);
 
   const handleDeleteEvent = useCallback((id: string) => {
-    setData(prev => prev ? { ...prev, events: prev.events.filter(e => e.id !== id) } : prev);
+    setData(prev => prev ? {
+      ...prev,
+      events: prev.events.filter(e => e.id !== id),
+      pendingRequests: prev.pendingRequests.filter(e => e.id !== id),
+      rejectedEvents: prev.rejectedEvents.filter(e => e.id !== id),
+    } : prev);
   }, []);
+
+  const handleToggleFeatured = useCallback(async (id: string, isFeatured: boolean) => {
+    // Optimistic update
+    setData(prev => prev ? { ...prev, events: prev.events.map(e => e.id === id ? { ...e, isFeatured } : e) } : prev);
+    try {
+      const res = await fetch('/api/admin/events', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, isFeatured }),
+      });
+      if (res.ok) await loadData(true);
+      else { await loadData(true); alert('Failed to update featured state'); }
+    } catch { await loadData(true); }
+  }, [loadData]);
 
   // Compute categories array purely dynamically based on database entries pool
   const categories = useMemo(() => {
@@ -610,15 +655,28 @@ export default function AdminEventsPage() {
     return Array.from(new Set(allCats));
   }, [data]);
 
-  const filtered = useMemo(() => {
-    if (!data) return [];
+  const applyFilter = useCallback((list: ClubEvent[]) => {
     const q = search.toLowerCase();
-    return data.events.filter(e => {
+    return list.filter(e => {
       const mQ = !q || e.title.toLowerCase().includes(q) || e.venue.toLowerCase().includes(q) || e.speaker.toLowerCase().includes(q);
       const mC = catFilter === 'All' || e.category === catFilter;
       return mQ && mC;
     });
-  }, [data, search, catFilter]);
+  }, [search, catFilter]);
+
+  const featuredEvents = useMemo(() => data ? data.events.filter(e => e.isFeatured) : [], [data]);
+
+  // Rows shown in the table tab (All = every event, Published = approved, Pending = pending)
+  const tableEvents = useMemo(() => {
+    if (!data) return [];
+    if (activeTab === 'published') return applyFilter(data.events);
+    if (activeTab === 'pending')   return applyFilter(data.pendingRequests);
+    return applyFilter([...data.events, ...data.pendingRequests, ...data.rejectedEvents]);
+  }, [data, activeTab, applyFilter]);
+
+  const visibleEvents = expanded ? tableEvents : tableEvents.slice(0, ROW_LIMIT);
+
+  const selectTab = (tab: 'all' | 'published' | 'pending') => { setActiveTab(tab); setExpanded(false); };
 
   // Compute analytical metric datasets dynamically on active domain rows
   const dynamicCategoryChartData = useMemo(() => {
@@ -688,7 +746,7 @@ export default function AdminEventsPage() {
 
           <div className="flex items-center gap-3">
             {data.stats.pendingCount > 0 && (
-              <button onClick={() => setActiveTab('requests')} className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-all"><Bell className="w-3.5 h-3.5" />{data.stats.pendingCount} pending</button>
+              <button onClick={() => setActiveTab('pending')} className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-all"><Bell className="w-3.5 h-3.5" />{data.stats.pendingCount} pending</button>
             )}
             <button onClick={() => loadData(true)} disabled={refreshing} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/[0.05] border border-white/[0.08] text-gray-400 hover:text-gray-200 text-sm font-medium transition-all"><RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />Refresh</button>
             <button onClick={() => setShowAdd(true)} className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition-all shadow-lg shadow-indigo-500/25"><Plus className="w-3.5 h-3.5" />Add Event</button>
@@ -745,15 +803,54 @@ export default function AdminEventsPage() {
         </div>
       </div>
 
+      {/* Featured Events */}
+      {featuredEvents.length > 0 && (
+        <div className="bg-white/[0.025] border border-white/[0.06] rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+            <h3 className="text-sm font-bold text-gray-100">Featured Events</h3>
+            <span className="text-[11px] text-gray-500">({featuredEvents.length})</span>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {featuredEvents.map(ev => (
+              <div key={ev.id} className="flex gap-4 bg-white/[0.02] border border-white/[0.06] rounded-xl p-3 hover:border-amber-500/30 transition-all">
+                <Thumb src={ev.poster} alt={ev.title} size={104} />
+                <div className="min-w-0 flex-1 flex flex-col">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-gray-100 line-clamp-2">{ev.title}</p>
+                    <span className="flex-shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20"><Star className="w-2.5 h-2.5 fill-amber-400" /> Featured</span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wide font-bold mt-1">{ev.category}</p>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-gray-500 mt-1">
+                    <span className="flex items-center gap-1"><Clock className="w-2.5 h-2.5" /> {fmtDate(ev.date)}</span>
+                    <span className="flex items-center gap-1 truncate"><MapPin className="w-2.5 h-2.5" /> {ev.venue}</span>
+                    <span className="flex items-center gap-1 truncate"><User className="w-2.5 h-2.5" /> {ev.speaker || '—'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-auto pt-2">
+                    <button onClick={() => setViewEvent(ev)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.07] text-[11px] text-gray-300 hover:text-white transition-colors">
+                      <Eye className="w-3 h-3" /> View
+                    </button>
+                    <button onClick={() => handleToggleFeatured(ev.id, false)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-400 hover:bg-amber-500/15 transition-colors">
+                      <Star className="w-3 h-3 fill-amber-400" /> Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Tables Lists */}
       <div className="bg-white/[0.025] border border-white/[0.06] rounded-2xl overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.06] px-5 pt-4">
           <div className="flex gap-2">
-            <button onClick={() => setActiveTab('events')} className={`pb-3 text-sm font-semibold border-b-2 px-2 transition-all ${activeTab === 'events' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>All Approved Events ({data.events.length})</button>
-            <button onClick={() => setActiveTab('requests')} className={`pb-3 text-sm font-semibold border-b-2 px-2 transition-all ${activeTab === 'requests' ? 'border-amber-400 text-amber-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>Pending Requests ({data.pendingRequests.length})</button>
+            <button onClick={() => selectTab('all')} className={`pb-3 text-sm font-semibold border-b-2 px-2 transition-all ${activeTab === 'all' ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>All Events ({data.events.length + data.pendingRequests.length + data.rejectedEvents.length})</button>
+            <button onClick={() => selectTab('published')} className={`pb-3 text-sm font-semibold border-b-2 px-2 transition-all ${activeTab === 'published' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>Published ({data.events.length})</button>
+            <button onClick={() => selectTab('pending')} className={`pb-3 text-sm font-semibold border-b-2 px-2 transition-all ${activeTab === 'pending' ? 'border-amber-400 text-amber-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}>Pending ({data.pendingRequests.length})</button>
           </div>
 
-          {activeTab === 'events' && (
+          {activeTab !== 'pending' && (
             <div className="flex items-center gap-2 pb-2">
               <div className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-1.5">
                 <Search className="w-3 h-3 text-gray-600" />
@@ -770,7 +867,8 @@ export default function AdminEventsPage() {
           )}
         </div>
 
-        {activeTab === 'events' && (
+        {activeTab !== 'pending' && (
+          <>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[780px]">
               <thead>
@@ -779,17 +877,25 @@ export default function AdminEventsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-14 text-xs text-gray-600">No approved events data records found.</td></tr>
+                {visibleEvents.length === 0 ? (
+                  <tr><td colSpan={6} className="text-center py-14 text-xs text-gray-600">No events data records found.</td></tr>
                 ) : (
-                  <AnimatePresence mode="popLayout">{filtered.map((ev, i) => <EventRow key={ev.id} event={ev} index={i} onView={e => setViewEvent(e)} onDelete={handleDeleteEvent} />)}</AnimatePresence>
+                  <AnimatePresence mode="popLayout">{visibleEvents.map((ev, i) => <EventRow key={ev.id} event={ev} index={i} onView={e => setViewEvent(e)} onDelete={handleDeleteEvent} onToggleFeatured={handleToggleFeatured} />)}</AnimatePresence>
                 )}
               </tbody>
             </table>
           </div>
+          {tableEvents.length > ROW_LIMIT && (
+            <div className="flex justify-center py-3 border-t border-white/[0.04]">
+              <button onClick={() => setExpanded(e => !e)} className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs font-medium text-gray-400 hover:text-gray-200 transition-all">
+                {expanded ? <><ChevronUp className="w-3.5 h-3.5" /> See Less</> : <><ChevronDown className="w-3.5 h-3.5" /> See More ({tableEvents.length - ROW_LIMIT})</>}
+              </button>
+            </div>
+          )}
+          </>
         )}
 
-        {activeTab === 'requests' && (
+        {activeTab === 'pending' && (
           <div className="p-5">
             {data.pendingRequests.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-14 gap-2 text-center text-xs text-gray-500"><Inbox className="w-8 h-8 text-gray-700" /><p className="text-sm text-gray-600 font-medium">No pending requests</p></div>

@@ -6,6 +6,7 @@ const blogSchema = new mongoose.Schema({
   author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   category: { type: String, required: true },
   coverImage: { type: String },
+  isFeatured: { type: Boolean, default: false },
   status: { type: String, enum: ['Draft', 'Pending', 'Published', 'Rejected'], default: 'Draft' },
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   views: { type: Number, default: 0 },

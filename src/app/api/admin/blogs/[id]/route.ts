@@ -39,6 +39,22 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: true, blog: updated });
     }
 
+    // ── Featured-only toggle ──────────────────────────────────────────────
+    // Matches when frontend sends exactly { isFeatured: true | false }
+    if (typeof body.isFeatured === 'boolean' && Object.keys(body).length === 1) {
+      const updated = await Blog.findByIdAndUpdate(
+        id,
+        { $set: { isFeatured: body.isFeatured } },
+        { new: true }
+      );
+
+      if (!updated) {
+        return NextResponse.json({ success: false, error: 'Blog not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({ success: true, blog: updated });
+    }
+
     // ── Full content edit ─────────────────────────────────────────────────
     const { title, content, category, tags, coverImage } = body;
 

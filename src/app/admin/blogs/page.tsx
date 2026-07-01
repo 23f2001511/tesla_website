@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
   FileText, Check, Ban, Eye, RefreshCw, Search, Trash2, Edit3,
-  ChevronDown, Clock, ThumbsUp, Layers, CheckCircle2,
-  AlertCircle, Loader2, FolderPlus, Tag, Inbox,
-  BarChart3, TrendingUp, X, BookOpen
+  ChevronDown, ChevronUp, Clock, ThumbsUp, Layers, CheckCircle2,
+  AlertCircle, Loader2, FolderPlus, Tag, Star,
+  TrendingUp, X
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -31,6 +31,7 @@ interface BlogItem {
   author: Author | null;
   category: string;
   coverImage?: string;
+  isFeatured?: boolean;
   status: BlogStatus;
   likes: string[];
   views: number;
@@ -41,6 +42,23 @@ interface BlogItem {
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 function fmtDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+// Cover-image thumbnail with gradient + icon fallback (keeps row height compact)
+function Thumb({ src, alt, size = 56 }: { src?: string; alt: string; size?: number }) {
+  return (
+    <div
+      className="rounded-lg overflow-hidden flex-shrink-0 bg-gradient-to-br from-purple-500/25 to-indigo-500/15 border border-white/[0.08] flex items-center justify-center"
+      style={{ width: size, height: size }}
+    >
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={alt} className="w-full h-full object-cover" />
+      ) : (
+        <FileText className="w-4 h-4 text-purple-300/70" />
+      )}
+    </div>
+  );
 }
 
 // ─── Animated Counter ──────────────────────────────────────────────────────────
@@ -304,9 +322,12 @@ export default function AdminBlogsPage() {
   const [selected, setSelected]       = useState<string[]>([]);
 
   // UI state
-  const [activeTab, setActiveTab]     = useState<'all' | 'pending'>('all');
+  const [activeTab, setActiveTab]     = useState<'all' | 'published' | 'pending'>('all');
+  const [expanded, setExpanded]       = useState(false);
   const [editorTarget, setEditorTarget] = useState<Partial<BlogItem> | null>(null);
   const [showEditor, setShowEditor]   = useState(false);
+
+  const ROW_LIMIT = 8;
 
   // Keep ref in sync so handleSave always reads the latest target even after close
   useEffect(() => { editorTargetRef.current = editorTarget; }, [editorTarget]);
@@ -420,6 +441,20 @@ export default function AdminBlogsPage() {
     } catch (e) { console.error('[handleSave] error:', e); }
   }, [fetchBlogs, router]);
 
+  const toggleFeatured = useCallback(async (id: string, isFeatured: boolean) => {
+    // Optimistic toggle
+    setBlogs(prev => prev.map(b => b._id === id ? { ...b, isFeatured } : b));
+    try {
+      const res = await fetch(`/api/admin/blogs/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isFeatured })
+      });
+      const data = await res.json();
+      if (!data.success) { await fetchBlogs(true); alert(`Failed: ${data.error || 'Unknown error'}`); }
+      else router.refresh();
+    } catch (e) { console.error('[toggleFeatured] error:', e); await fetchBlogs(true); }
+  }, [fetchBlogs, router]);
+
   const executeBulk = async (action: 'Publish' | 'Reject' | 'Delete') => {
     if (!selected.length) return;
     if (!confirm(`Run bulk [${action}] on ${selected.length} article(s)?`)) return;
@@ -464,8 +499,6 @@ export default function AdminBlogsPage() {
     return Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
   }, [blogs]);
 
-  const pendingBlogs = useMemo(() => blogs.filter(b => b.status === 'Pending' || b.status === 'Draft'), [blogs]);
-
   const filteredBlogs = useMemo(() => {
     const q = search.toLowerCase();
     return blogs
@@ -481,8 +514,21 @@ export default function AdminBlogsPage() {
       });
   }, [blogs, search, statusFilter, sortParam]);
 
+  const featuredBlogs = useMemo(() => blogs.filter(b => b.isFeatured), [blogs]);
+
+  // Apply the active tab on top of the search/status/sort filtered list
+  const tabBlogs = useMemo(() => {
+    if (activeTab === 'published') return filteredBlogs.filter(b => b.status === 'Published');
+    if (activeTab === 'pending')   return filteredBlogs.filter(b => b.status === 'Pending');
+    return filteredBlogs;
+  }, [filteredBlogs, activeTab]);
+
+  const visibleBlogs = expanded ? tabBlogs : tabBlogs.slice(0, ROW_LIMIT);
+
+  const selectTab = (tab: 'all' | 'published' | 'pending') => { setActiveTab(tab); setExpanded(false); };
+
   const toggleAll = () => {
-    setSelected(selected.length === filteredBlogs.length ? [] : filteredBlogs.map(b => b._id));
+    setSelected(selected.length === tabBlogs.length ? [] : tabBlogs.map(b => b._id));
   };
 
   const statCards = useMemo(() => [
@@ -628,23 +674,67 @@ export default function AdminBlogsPage() {
         </div>
       </div>
 
-      {/* ── Table / Pending Tabs ─────────────────────────────────────────── */}
+      {/* ── Featured Blogs ───────────────────────────────────────────────── */}
+      {featuredBlogs.length > 0 && (
+        <div className="bg-white/[0.025] border border-white/[0.06] rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
+            <h3 className="text-sm font-bold text-gray-100">Featured Blogs</h3>
+            <span className="text-[11px] text-gray-500">({featuredBlogs.length})</span>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {featuredBlogs.map(blog => (
+              <div key={blog._id} className="flex gap-4 bg-white/[0.02] border border-white/[0.06] rounded-xl p-3 hover:border-amber-500/30 transition-all">
+                <Thumb src={blog.coverImage} alt={blog.title} size={104} />
+                <div className="min-w-0 flex-1 flex flex-col">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-semibold text-gray-100 line-clamp-2">{blog.title}</p>
+                    <span className={`flex-shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full border ${
+                      blog.status === 'Published' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                    }`}>{blog.status}</span>
+                  </div>
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wide font-bold mt-1">{blog.category}</p>
+                  <div className="flex items-center gap-2 text-[11px] text-gray-500 mt-1">
+                    <span className="truncate">{blog.author?.name || 'Anonymous'}</span>
+                    <span>·</span>
+                    <span className="whitespace-nowrap">{fmtDate(blog.createdAt)}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-auto pt-2">
+                    <button onClick={() => { setEditorTarget(blog); setShowEditor(true); }} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.07] text-[11px] text-gray-300 hover:text-white transition-colors">
+                      <Edit3 className="w-3 h-3" /> Edit
+                    </button>
+                    <button onClick={() => toggleFeatured(blog._id, false)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-[11px] text-amber-400 hover:bg-amber-500/15 transition-colors">
+                      <Star className="w-3 h-3 fill-amber-400" /> Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Table Tabs ───────────────────────────────────────────────────── */}
       <div className="bg-white/[0.025] border border-white/[0.06] rounded-2xl overflow-hidden">
 
         {/* Tab bar + filters */}
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.06] px-5 pt-4">
           <div className="flex gap-2">
             <button
-              onClick={() => setActiveTab('all')}
+              onClick={() => selectTab('all')}
               className={`pb-3 text-sm font-semibold border-b-2 px-2 transition-all ${activeTab === 'all' ? 'border-purple-500 text-purple-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
-            >All Articles ({blogs.length})</button>
+            >All Blogs ({blogs.length})</button>
             <button
-              onClick={() => setActiveTab('pending')}
+              onClick={() => selectTab('published')}
+              className={`pb-3 text-sm font-semibold border-b-2 px-2 transition-all ${activeTab === 'published' ? 'border-emerald-400 text-emerald-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
+            >Published ({metrics.published})</button>
+            <button
+              onClick={() => selectTab('pending')}
               className={`pb-3 text-sm font-semibold border-b-2 px-2 transition-all ${activeTab === 'pending' ? 'border-amber-400 text-amber-400' : 'border-transparent text-gray-500 hover:text-gray-300'}`}
-            >Pending Review ({pendingBlogs.length})</button>
+            >Pending ({blogs.filter(b => b.status === 'Pending').length})</button>
           </div>
 
-          {activeTab === 'all' && (
+          {(
             <div className="flex flex-wrap items-center gap-2 pb-2">
               {/* Search */}
               <div className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-1.5">
@@ -684,126 +774,96 @@ export default function AdminBlogsPage() {
           )}
         </div>
 
-        {/* ── All Articles Table ──────────────────────────────────────────── */}
-        {activeTab === 'all' && (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px]">
-              <thead>
-                <tr className="border-b border-white/[0.05] bg-white/[0.01] text-[10px] font-medium text-gray-500 uppercase tracking-wider">
-                  <th className="px-4 py-3 w-10 text-center">
-                    <input type="checkbox" className="cursor-pointer"
-                      checked={selected.length === filteredBlogs.length && filteredBlogs.length > 0}
-                      onChange={toggleAll}
-                    />
-                  </th>
-                  {['Article', 'Author & Date', 'Engagement', 'Status', 'Actions'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredBlogs.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-14 text-xs text-gray-600">No articles match the current filters.</td></tr>
-                ) : (
-                  <AnimatePresence mode="popLayout">
-                    {filteredBlogs.map((blog, i) => (
-                      <motion.tr
-                        key={blog._id}
-                        initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}
-                        transition={{ delay: 0.03 * i, duration: 0.28 }}
-                        className="text-xs text-gray-300 hover:bg-white/[0.018] transition-colors group"
-                      >
-                        <td className="px-4 py-3 align-middle border-b border-white/[0.04] text-center">
-                          <input type="checkbox" className="cursor-pointer"
-                            checked={selected.includes(blog._id)}
-                            onChange={() => setSelected(selected.includes(blog._id) ? selected.filter(i => i !== blog._id) : [...selected, blog._id])}
-                          />
-                        </td>
-                        <td className="px-4 py-3 align-middle border-b border-white/[0.04] max-w-[220px]">
-                          <p className="font-semibold text-[13px] text-gray-100 truncate group-hover:text-purple-400 transition-colors">{blog.title}</p>
-                          <p className="text-[10px] text-gray-500 uppercase tracking-wide font-bold mt-0.5">{blog.category}</p>
-                        </td>
-                        <td className="px-4 py-3 align-middle border-b border-white/[0.04] whitespace-nowrap">
-                          <p className="text-[13px] text-gray-300">{blog.author?.name || 'Anonymous'}</p>
-                          <p className="text-[11px] text-gray-500 mt-0.5">{fmtDate(blog.createdAt)}</p>
-                        </td>
-                        <td className="px-4 py-3 align-middle border-b border-white/[0.04] whitespace-nowrap">
-                          <div className="flex items-center gap-4 text-gray-400 text-[11px]">
-                            <span className="flex items-center gap-1"><Eye className="w-3 h-3 text-gray-600" /> {blog.views || 0}</span>
-                            <span className="flex items-center gap-1"><ThumbsUp className="w-3 h-3 text-gray-600" /> {blog.likes?.length || 0}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 align-middle border-b border-white/[0.04] whitespace-nowrap">
-                          <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-0.5 rounded-full border ${
-                            blog.status === 'Published' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
-                            blog.status === 'Rejected'  ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-                            blog.status === 'Pending'   ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                                                          'bg-white/5 text-gray-400 border-white/10'
-                          }`}>{blog.status}</span>
-                        </td>
-                        <td className="px-4 py-3 align-middle border-b border-white/[0.04] whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <button onClick={() => { setEditorTarget(blog); setShowEditor(true); }} title="Edit" className="w-7 h-7 rounded-lg border border-white/[0.07] text-gray-500 hover:text-purple-400 hover:bg-purple-500/10 flex items-center justify-center transition-all"><Edit3 className="w-3 h-3" /></button>
-                            {blog.status !== 'Published' && <button onClick={() => updateStatus(blog._id, 'Published')} title="Publish" className="w-7 h-7 rounded-lg border border-white/[0.07] text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 flex items-center justify-center transition-all"><Check className="w-3 h-3" /></button>}
-                            {blog.status !== 'Rejected'  && <button onClick={() => updateStatus(blog._id, 'Rejected')}  title="Reject"  className="w-7 h-7 rounded-lg border border-white/[0.07] text-gray-500 hover:text-amber-400  hover:bg-amber-500/10  flex items-center justify-center transition-all"><Ban   className="w-3 h-3" /></button>}
-                            <button onClick={() => deleteBlog(blog._id)} title="Delete" className="w-7 h-7 rounded-lg border border-white/[0.07] text-gray-500 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center transition-all"><Trash2 className="w-3 h-3" /></button>
-                          </div>
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </AnimatePresence>
-                )}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* ── Pending Review Tab ──────────────────────────────────────────── */}
-        {activeTab === 'pending' && (
-          <div className="p-5">
-            {pendingBlogs.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-14 gap-2 text-center">
-                <Inbox className="w-8 h-8 text-gray-700" />
-                <p className="text-sm text-gray-600 font-medium">No pending submissions</p>
-                <p className="text-xs text-gray-700">All articles are reviewed.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {pendingBlogs.map(blog => (
-                  <div key={blog._id} className="flex flex-wrap md:flex-nowrap items-center justify-between gap-4 bg-white/[0.02] border border-white/[0.06] hover:border-amber-500/30 rounded-xl p-4 transition-all">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div className="w-9 h-9 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
-                        <BookOpen className="w-4 h-4 text-amber-400" />
-                      </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="text-sm font-semibold text-gray-100 truncate">{blog.title}</p>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-gray-400">{blog.category}</span>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${blog.status === 'Pending' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-white/5 text-gray-400 border-white/10'}`}>{blog.status}</span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-                          <span>{blog.author?.name || 'Anonymous'}</span>
-                          <span>·</span>
-                          <span>{fmtDate(blog.createdAt)}</span>
-                          <span className="flex items-center gap-1"><Eye className="w-2.5 h-2.5" /> {blog.views || 0} views</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <button onClick={() => { setEditorTarget(blog); setShowEditor(true); }} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.07] text-xs text-gray-300 hover:text-white transition-colors">
-                        <Edit3 className="w-3 h-3" /> Edit
-                      </button>
-                      <button onClick={() => updateStatus(blog._id, 'Rejected')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400 hover:bg-red-500/15 transition-colors">
-                        <Ban className="w-3 h-3" /> Reject
-                      </button>
-                      <button onClick={() => updateStatus(blog._id, 'Published')} className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-400 hover:bg-emerald-500/15 transition-colors">
-                        <Check className="w-3 h-3" /> Publish
-                      </button>
-                    </div>
-                  </div>
+        {/* ── Blogs Table ─────────────────────────────────────────────────── */}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px]">
+            <thead>
+              <tr className="border-b border-white/[0.05] bg-white/[0.01] text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-4 py-3 w-10 text-center">
+                  <input type="checkbox" className="cursor-pointer"
+                    checked={selected.length === tabBlogs.length && tabBlogs.length > 0}
+                    onChange={toggleAll}
+                  />
+                </th>
+                {['Article', 'Author & Date', 'Engagement', 'Status', 'Actions'].map(h => (
+                  <th key={h} className="px-4 py-3 text-left">{h}</th>
                 ))}
-              </div>
-            )}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleBlogs.length === 0 ? (
+                <tr><td colSpan={6} className="text-center py-14 text-xs text-gray-600">No articles match the current filters.</td></tr>
+              ) : (
+                <AnimatePresence mode="popLayout">
+                  {visibleBlogs.map((blog, i) => (
+                    <motion.tr
+                      key={blog._id}
+                      initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }}
+                      transition={{ delay: 0.02 * i, duration: 0.24 }}
+                      className="text-xs text-gray-300 hover:bg-white/[0.018] transition-colors group"
+                    >
+                      <td className="px-4 py-2 align-middle border-b border-white/[0.04] text-center">
+                        <input type="checkbox" className="cursor-pointer"
+                          checked={selected.includes(blog._id)}
+                          onChange={() => setSelected(selected.includes(blog._id) ? selected.filter(x => x !== blog._id) : [...selected, blog._id])}
+                        />
+                      </td>
+                      <td className="px-4 py-2 align-middle border-b border-white/[0.04] max-w-[260px]">
+                        <div className="flex items-center gap-3">
+                          <Thumb src={blog.coverImage} alt={blog.title} />
+                          <div className="min-w-0">
+                            <p className="font-semibold text-[13px] text-gray-100 truncate group-hover:text-purple-400 transition-colors flex items-center gap-1.5">
+                              {blog.isFeatured && <Star className="w-3 h-3 text-amber-400 fill-amber-400 flex-shrink-0" />}
+                              <span className="truncate">{blog.title}</span>
+                            </p>
+                            <p className="text-[10px] text-gray-500 uppercase tracking-wide font-bold mt-0.5">{blog.category}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 align-middle border-b border-white/[0.04] whitespace-nowrap">
+                        <p className="text-[13px] text-gray-300">{blog.author?.name || 'Anonymous'}</p>
+                        <p className="text-[11px] text-gray-500 mt-0.5">{fmtDate(blog.createdAt)}</p>
+                      </td>
+                      <td className="px-4 py-2 align-middle border-b border-white/[0.04] whitespace-nowrap">
+                        <div className="flex items-center gap-4 text-gray-400 text-[11px]">
+                          <span className="flex items-center gap-1"><Eye className="w-3 h-3 text-gray-600" /> {blog.views || 0}</span>
+                          <span className="flex items-center gap-1"><ThumbsUp className="w-3 h-3 text-gray-600" /> {blog.likes?.length || 0}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2 align-middle border-b border-white/[0.04] whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2.5 py-0.5 rounded-full border ${
+                          blog.status === 'Published' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                          blog.status === 'Rejected'  ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                          blog.status === 'Pending'   ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
+                                                        'bg-white/5 text-gray-400 border-white/10'
+                        }`}>{blog.status}</span>
+                      </td>
+                      <td className="px-4 py-2 align-middle border-b border-white/[0.04] whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <button onClick={() => { setEditorTarget(blog); setShowEditor(true); }} title="Edit" className="w-7 h-7 rounded-lg border border-white/[0.07] text-gray-500 hover:text-purple-400 hover:bg-purple-500/10 flex items-center justify-center transition-all"><Edit3 className="w-3 h-3" /></button>
+                          {blog.status === 'Published' && <button onClick={() => toggleFeatured(blog._id, !blog.isFeatured)} title={blog.isFeatured ? 'Remove Featured' : 'Mark Featured'} className={`w-7 h-7 rounded-lg border border-white/[0.07] flex items-center justify-center transition-all ${blog.isFeatured ? 'text-amber-400 bg-amber-500/10' : 'text-gray-500 hover:text-amber-400 hover:bg-amber-500/10'}`}><Star className={`w-3 h-3 ${blog.isFeatured ? 'fill-amber-400' : ''}`} /></button>}
+                          {blog.status !== 'Published' && <button onClick={() => updateStatus(blog._id, 'Published')} title="Publish" className="w-7 h-7 rounded-lg border border-white/[0.07] text-gray-500 hover:text-emerald-400 hover:bg-emerald-500/10 flex items-center justify-center transition-all"><Check className="w-3 h-3" /></button>}
+                          {blog.status !== 'Rejected'  && <button onClick={() => updateStatus(blog._id, 'Rejected')}  title="Reject"  className="w-7 h-7 rounded-lg border border-white/[0.07] text-gray-500 hover:text-amber-400  hover:bg-amber-500/10  flex items-center justify-center transition-all"><Ban   className="w-3 h-3" /></button>}
+                          <button onClick={() => deleteBlog(blog._id)} title="Delete" className="w-7 h-7 rounded-lg border border-white/[0.07] text-gray-500 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center transition-all"><Trash2 className="w-3 h-3" /></button>
+                        </div>
+                      </td>
+                    </motion.tr>
+                  ))}
+                </AnimatePresence>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* See More / See Less */}
+        {tabBlogs.length > ROW_LIMIT && (
+          <div className="flex justify-center py-3 border-t border-white/[0.04]">
+            <button
+              onClick={() => setExpanded(e => !e)}
+              className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs font-medium text-gray-400 hover:text-gray-200 transition-all"
+            >
+              {expanded ? <><ChevronUp className="w-3.5 h-3.5" /> See Less</> : <><ChevronDown className="w-3.5 h-3.5" /> See More ({tabBlogs.length - ROW_LIMIT})</>}
+            </button>
           </div>
         )}
       </div>

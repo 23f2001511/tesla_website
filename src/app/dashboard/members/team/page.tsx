@@ -41,6 +41,9 @@ const restrictedActions = [
   { label: 'Remove Member',          icon: UserMinus, note: 'Requires Admin Approval', permission: 'members:delete' },
   { label: 'Approve Resources',      icon: FileCheck, note: 'Requires Admin Approval', permission: 'resources:approve' },
   { label: 'Publish Blogs Globally', icon: Globe,     note: 'Requires Admin Approval', permission: 'blogs:publish' },
+  { label: 'Upload Resources',       icon: FileText,  note: 'Requires Admin Approval', permission: 'resources:upload' },
+  { label: 'Create Events',          icon: Calendar,  note: 'Requires Admin Approval', permission: 'events:create' },
+  { label: 'Edit Team Information',  icon: Building2,  note: 'Requires Admin Approval', permission: 'team:edit' },
 ];
 
 // Helpers for rendering real members.
