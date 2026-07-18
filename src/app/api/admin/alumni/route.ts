@@ -8,7 +8,13 @@ import { requireRole } from '@/lib/auth';
 export const dynamic = 'force-dynamic';
 
 // Alumni records contain personal contact data and account creation — manage as admins only.
-const ALUMNI_MANAGERS = ['Admin', 'President'] as const;
+const ALUMNI_MANAGERS = ['Admin', 'President', 'OfficeBearer'] as const;
+// Accounts an OfficeBearer may NOT convert to Alumni or delete (same rule as the
+// members API — privileged accounts are Admin/President-only territory).
+const OB_PROTECTED_ROLES = ['Admin', 'President', 'PI'];
+function obBlocked(actorRole?: string | null, targetRole?: string | null) {
+  return actorRole === 'OfficeBearer' && !!targetRole && OB_PROTECTED_ROLES.includes(targetRole);
+}
 
 // Nodemailer config using SMTP configurations env values
 const mailTransporter = nodemailer.createTransport({
@@ -100,7 +106,7 @@ export async function GET(request: NextRequest) {
 // ─── POST: Ingest/Create New Alumnus & Dispatch Secure Mail ────────────────
 export async function POST(request: NextRequest) {
   try {
-    const { response: authError } = await requireRole([...ALUMNI_MANAGERS]);
+    const { payload, response: authError } = await requireRole([...ALUMNI_MANAGERS]);
     if (authError) return authError;
 
     await connectDB();
@@ -110,6 +116,17 @@ export async function POST(request: NextRequest) {
     // A. FLOW 1: Convert existing user to Alumni status
     if (mode === 'convert') {
       if (!userId) return NextResponse.json({ success: false, error: 'User ID missing' }, { status: 400 });
+
+      // Converting demotes the target's role to Alumni — an OfficeBearer may not
+      // do that to a privileged account.
+      const targetUser: any = await User.findById(userId).select('role').lean();
+      if (!targetUser) return NextResponse.json({ success: false, error: 'User mapping mismatch' }, { status: 404 });
+      if (obBlocked(payload?.role, targetUser.role)) {
+        return NextResponse.json(
+          { success: false, error: `Office Bearers cannot convert ${targetUser.role} accounts to Alumni.` },
+          { status: 403 }
+        );
+      }
 
       const updatedUser = await User.findByIdAndUpdate(
         userId,
@@ -211,7 +228,7 @@ export async function POST(request: NextRequest) {
 // ─── DELETE: Purge Alumnus Record / Revert Status ────────────────────────────
 export async function DELETE(request: NextRequest) {
   try {
-    const { response: authError } = await requireRole([...ALUMNI_MANAGERS]);
+    const { payload, response: authError } = await requireRole([...ALUMNI_MANAGERS]);
     if (authError) return authError;
 
     await connectDB();
@@ -219,6 +236,16 @@ export async function DELETE(request: NextRequest) {
     const id = searchParams.get('id');
 
     if (!id) return NextResponse.json({ success: false, error: 'ID is missing' }, { status: 400 });
+
+    // This deletes the underlying User document — an OfficeBearer may never
+    // remove a privileged account through the alumni panel.
+    const targetUser: any = await User.findById(id).select('role').lean();
+    if (targetUser && obBlocked(payload?.role, targetUser.role)) {
+      return NextResponse.json(
+        { success: false, error: `Office Bearers cannot delete ${targetUser.role} accounts.` },
+        { status: 403 }
+      );
+    }
 
     // Individual absolute deletion purging execution bounds
     await User.findByIdAndDelete(id);

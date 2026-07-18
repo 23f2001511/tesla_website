@@ -9,12 +9,15 @@ import {
   FileText, FolderOpen, Settings2, Building2, Shield,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TL_PERMISSIONS } from '@/lib/permissions';
+import { TL_PERMISSIONS, ACHIEVEMENT_MANAGER } from '@/lib/permissions';
 
 // ─── Role config ─────────────────────────────────────────────────────────────
 const ALL_ROLES = ['Admin', 'PI', 'President', 'OfficeBearer', 'TeamLeader', 'TeamMember', 'Alumni'];
 // PI is intentionally excluded — nobody can be promoted to PI from the dashboard.
 const PROMOTABLE_ROLES = ['Admin', 'President', 'OfficeBearer', 'TeamLeader', 'TeamMember', 'Alumni'];
+// Roles offered when CREATING an account. PI (professor) can be created but not
+// promoted-to, so it lives here and not in PROMOTABLE_ROLES.
+const CREATABLE_ROLES = ['Admin', 'President', 'OfficeBearer', 'PI', 'TeamLeader', 'TeamMember', 'Alumni'];
 
 // Roles allowed to add/edit/delete/toggle members, manage teams & permissions.
 const MEMBER_MANAGERS = ['Admin', 'President', 'OfficeBearer'];
@@ -32,6 +35,10 @@ const ROLE_META: Record<string, { Icon: any; color: string }> = {
 };
 
 const UNASSIGNED_KEY = '__unassigned__';
+
+// Quick-filter tabs shown above the Team Cards. 'All Teams' keeps the cards view;
+// every other tab flattens to a role-filtered member list across all teams.
+const ROLE_TABS = ['All Teams', 'Admin', 'President', 'OfficeBearer', 'PI', 'Alumni'];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 function fmtDate(d?: string | null) {
@@ -260,6 +267,8 @@ function PermissionPanel({ member, onClose, onDone, actor }: { member: any; onCl
   const initial = new Set<string>((member.permissions || []).filter((p: string) => TL_PERMISSIONS.some(t => t.key === p)));
   const [granted, setGranted] = useState<Set<string>>(initial);
   const [isLeader, setIsLeader] = useState(member.role === 'TeamLeader');
+  // Role-independent grant — survives role changes, so it lives outside `granted`.
+  const [achMgr, setAchMgr] = useState<boolean>((member.permissions || []).includes(ACHIEVEMENT_MANAGER.key));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -283,6 +292,7 @@ function PermissionPanel({ member, onClose, onDone, actor }: { member: any; onCl
           permissions: isLeader ? Array.from(granted) : [],
           makeLeader: isLeader && member.role !== 'TeamLeader',
           revoke: !isLeader && member.role === 'TeamLeader',
+          achievementManager: achMgr,
         }),
       });
       const data = await res.json();
@@ -342,6 +352,22 @@ function PermissionPanel({ member, onClose, onDone, actor }: { member: any; onCl
         })}
       </div>
 
+      {/* Role-independent grant — can go to any member and survives role changes. */}
+      <div className="space-y-2 pt-1">
+        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Club-wide grants</p>
+        <button onClick={() => setAchMgr(v => !v)}
+          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border transition-all ${
+            achMgr ? 'bg-amber-500/10 border-amber-500/30' : 'bg-white/[0.02] border-white/[0.06]'
+          }`}>
+          <span className="flex items-center gap-2 text-xs text-gray-200">
+            {achMgr ? <CheckCircle className="w-3.5 h-3.5 text-amber-400" /> : <Lock className="w-3.5 h-3.5 text-gray-500" />}
+            {ACHIEVEMENT_MANAGER.label}
+          </span>
+          <span className={`text-[10px] font-bold ${achMgr ? 'text-amber-400' : 'text-gray-600'}`}>{achMgr ? 'Granted' : 'Locked'}</span>
+        </button>
+        <p className="text-[10px] text-gray-600">Lets this member add & remove club achievements, regardless of their role.</p>
+      </div>
+
       <div className="flex justify-end gap-2 pt-1">
         <button onClick={onClose} className="text-xs text-gray-400 px-3 py-1.5 hover:text-gray-200">Cancel</button>
         <button onClick={submit} disabled={submitting}
@@ -354,42 +380,107 @@ function PermissionPanel({ member, onClose, onDone, actor }: { member: any; onCl
   );
 }
 
-// ─── Create team modal ────────────────────────────────────────────────────────
-function CreateTeamModal({ onClose, onDone, actor }: { onClose: () => void; onDone: () => void; actor: { id: string; role: string } }) {
+// ─── Create / edit team modal ─────────────────────────────────────────────────
+// Admins can either create a brand-new team OR pick an EXISTING team from the
+// searchable dropdown to edit it (cover + description) — avoiding duplicates.
+function CreateTeamModal({ onClose, onDone, actor, teams }: { onClose: () => void; onDone: () => void; actor: { id: string; role: string }; teams: any[] }) {
   const [form, setForm] = useState({ name: '', description: '', coverImage: '' });
+  const [existingId, setExistingId] = useState<string | null>(null); // null → create, else → edit
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerQuery, setPickerQuery] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  const realTeams = useMemo(() => teams.filter(t => !t.synthetic), [teams]);
+  const matches = useMemo(() => {
+    const q = pickerQuery.trim().toLowerCase();
+    if (!q) return realTeams;
+    return realTeams.filter(t => t.name.toLowerCase().includes(q));
+  }, [realTeams, pickerQuery]);
+
+  const selectExisting = (t: any) => {
+    setExistingId(t._id);
+    setForm({ name: t.name || '', description: t.description || '', coverImage: t.coverImage || '' });
+    setPickerOpen(false);
+    setPickerQuery(t.name);
+    setError('');
+  };
+
+  const resetToCreate = () => {
+    setExistingId(null);
+    setForm({ name: '', description: '', coverImage: '' });
+    setPickerQuery('');
+  };
 
   const submit = async () => {
     if (!form.name.trim()) { setError('Team name is required.'); return; }
     setSubmitting(true); setError('');
     try {
       const res = await fetch('/api/admin/teams', {
-        method: 'POST',
+        method: existingId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actorRole: actor.role, actorId: actor.id, ...form, name: form.name.trim() }),
+        body: JSON.stringify({ actorRole: actor.role, actorId: actor.id, ...(existingId ? { id: existingId } : {}), ...form, name: form.name.trim() }),
       });
       const data = await res.json();
-      if (!data.success) { setError(data.message || 'Could not create team.'); return; }
+      if (!data.success) { setError(data.message || 'Could not save team.'); return; }
       onDone(); onClose();
-    } catch { setError('Could not reach the server. Team was not created.'); }
+    } catch { setError('Could not reach the server. Team was not saved.'); }
     finally { setSubmitting(false); }
   };
 
   return (
     <ModalShell onClose={onClose} wide>
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-white flex items-center gap-2"><FolderPlus className="w-4 h-4 text-emerald-400" /> Create new team</h3>
+        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+          {existingId ? <Settings2 className="w-4 h-4 text-blue-400" /> : <FolderPlus className="w-4 h-4 text-emerald-400" />}
+          {existingId ? 'Edit existing team' : 'Create new team'}
+        </h3>
         <button onClick={onClose} className="w-6 h-6 rounded-lg hover:bg-white/10 flex items-center justify-center"><X className="w-3.5 h-3.5 text-gray-400" /></button>
       </div>
 
       {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400">{error}</div>}
 
+      {/* Searchable existing-team picker — pick one to edit instead of duplicating */}
+      <div className="relative">
+        <label className="block text-[11px] text-gray-400 mb-1.5 font-medium flex items-center gap-1"><Search className="w-3 h-3" /> Use an existing team</label>
+        <button type="button" onClick={() => setPickerOpen(o => !o)}
+          className="w-full flex items-center justify-between p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-blue-500">
+          <span className={existingId ? 'text-white' : 'text-gray-500'}>{existingId ? form.name : 'Search & select a team…'}</span>
+          <ChevronDown className="w-3.5 h-3.5 text-gray-500" />
+        </button>
+        {existingId && (
+          <button type="button" onClick={resetToCreate}
+            className="absolute right-8 top-[30px] text-[10px] font-bold text-emerald-400 hover:text-emerald-300">+ New</button>
+        )}
+        {pickerOpen && (
+          <div className="absolute z-10 mt-1 w-full rounded-lg bg-zinc-950 border border-white/10 shadow-xl overflow-hidden">
+            <div className="p-2 border-b border-white/10">
+              <input autoFocus type="text" placeholder="Type to filter teams…" value={pickerQuery}
+                onChange={e => setPickerQuery(e.target.value)}
+                className="w-full p-2 rounded-md bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-blue-500" />
+            </div>
+            <div className="max-h-40 overflow-y-auto">
+              {matches.length === 0 ? (
+                <p className="px-3 py-2.5 text-[11px] text-gray-500">No matching teams.</p>
+              ) : matches.map(t => (
+                <button key={t._id} type="button" onClick={() => selectExisting(t)}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/5 transition-colors">
+                  <Building2 className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                  <span className="text-xs text-white truncate">{t.name}</span>
+                  <span className="text-[10px] text-gray-500 ml-auto">{t.totalMembers ?? 0} members</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        <p className="text-[10px] text-gray-600 mt-1">Select a team to update its cover & description, or leave blank to create a new one.</p>
+      </div>
+
       <div>
         <label className="block text-[11px] text-gray-400 mb-1.5 font-medium">Team name</label>
-        <input autoFocus type="text" placeholder="e.g. AI/ML Team" value={form.name}
+        <input type="text" placeholder="e.g. AI/ML Team" value={form.name} disabled={!!existingId}
           onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
-          className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-emerald-500" />
+          className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-emerald-500 disabled:opacity-60" />
       </div>
       <div>
         <label className="block text-[11px] text-gray-400 mb-1.5 font-medium">Description</label>
@@ -398,10 +489,24 @@ function CreateTeamModal({ onClose, onDone, actor }: { onClose: () => void; onDo
           className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-emerald-500 resize-none" />
       </div>
       <div>
-        <label className="block text-[11px] text-gray-400 mb-1.5 font-medium flex items-center gap-1"><ImageIcon className="w-3 h-3" /> Cover image URL</label>
-        <input type="text" placeholder="https://…" value={form.coverImage}
-          onChange={e => setForm(f => ({ ...f, coverImage: e.target.value }))}
-          className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-emerald-500" />
+        <label className="block text-[11px] text-gray-400 mb-1.5 font-medium flex items-center gap-1"><ImageIcon className="w-3 h-3" /> Cover image</label>
+        {form.coverImage && (
+          <div className="h-24 rounded-lg overflow-hidden border border-white/10 mb-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={form.coverImage} alt={form.name} className="w-full h-full object-cover" />
+          </div>
+        )}
+        <div className="flex gap-2">
+          <input type="text" placeholder="Paste cover image URL…" value={form.coverImage}
+            onChange={e => setForm(f => ({ ...f, coverImage: e.target.value }))}
+            className="flex-1 p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs outline-none focus:border-emerald-500" />
+          {form.coverImage && (
+            <button onClick={() => setForm(f => ({ ...f, coverImage: '' }))} title="Delete cover"
+              className="px-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20">
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex justify-end gap-2 pt-1">
@@ -409,7 +514,7 @@ function CreateTeamModal({ onClose, onDone, actor }: { onClose: () => void; onDo
         <button onClick={submit} disabled={submitting}
           className="flex items-center gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-500 px-4 py-1.5 rounded-xl text-white disabled:opacity-50 transition-colors">
           {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-          {submitting ? 'Creating…' : 'Create team'}
+          {submitting ? 'Saving…' : existingId ? 'Save changes' : 'Create team'}
         </button>
       </div>
     </ModalShell>
@@ -540,18 +645,19 @@ function EditTeamModal({ team, teamMembers, onClose, onDone, actor }: { team: an
 
 // ─── Add member modal ─────────────────────────────────────────────────────────
 function AddMemberModal({ onClose, onDone, teamNames, defaultTeam }: { onClose: () => void; onDone: () => void; teamNames: string[]; defaultTeam: string }) {
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'TeamMember', team: defaultTeam });
+  const [form, setForm] = useState({ name: '', email: '', role: 'TeamMember', team: defaultTeam });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const isPI = form.role === 'PI';
 
   const submit = async () => {
-    if (!form.name || !form.email || !form.password) { setError('Name, email and password are required.'); return; }
+    if (!form.name || !form.email) { setError('Name and email are required.'); return; }
     setSubmitting(true); setError('');
     try {
       const res = await fetch('/api/admin/members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify({ ...form, team: isPI ? '' : form.team }),
       });
       const data = await res.json();
       if (!data.success) { setError(data.message || 'Failed to create member.'); return; }
@@ -582,29 +688,27 @@ function AddMemberModal({ onClose, onDone, teamNames, defaultTeam }: { onClose: 
             onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
             className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500" />
         </div>
-        <div>
-          <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Password</label>
-          <input type="password" placeholder="••••••••" value={form.password} autoComplete="new-password"
-            onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-            className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500" />
-        </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Role</label>
             <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
               className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 cursor-pointer">
-              {PROMOTABLE_ROLES.map(r => <option key={r} value={r} className="bg-zinc-950">{r}</option>)}
+              {CREATABLE_ROLES.map(r => <option key={r} value={r} className="bg-zinc-950">{r}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Team</label>
-            <select value={form.team} onChange={e => setForm(f => ({ ...f, team: e.target.value }))}
-              className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 cursor-pointer">
-              <option value="" className="bg-zinc-950">— None —</option>
-              {teamNames.map(t => <option key={t} value={t} className="bg-zinc-950">{t}</option>)}
+            <select value={isPI ? '' : form.team} disabled={isPI}
+              onChange={e => setForm(f => ({ ...f, team: e.target.value }))}
+              className="w-full p-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs focus:outline-none focus:border-blue-500 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+              <option value="" className="bg-zinc-950">{isPI ? 'Not applicable for PI' : '— None —'}</option>
+              {!isPI && teamNames.map(t => <option key={t} value={t} className="bg-zinc-950">{t}</option>)}
             </select>
           </div>
         </div>
+        <p className="text-[10px] text-slate-500 leading-relaxed">
+          No password needed — a secure temporary password will be emailed to the member so they can set their own.
+        </p>
 
         <button type="button" onClick={submit} disabled={submitting}
           className="w-full mt-1 py-3 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs shadow-md transition-all border border-blue-400/20 disabled:opacity-50 flex items-center justify-center gap-1.5">
@@ -783,6 +887,10 @@ export default function AdminMembers() {
   const [roleFilter, setRoleFilter] = useState('All');
   const [visibleCount, setVisibleCount] = useState(8);
 
+  // Global quick-filter tabs — surface hard-to-find roles without hiding Team Cards.
+  const [roleTab, setRoleTab] = useState<string>('All Teams');
+  const [roleTabSearch, setRoleTabSearch] = useState('');
+
   // modals
   const [showCreateTeam, setShowCreateTeam] = useState(false);
   const [showEditTeam, setShowEditTeam] = useState(false);
@@ -809,38 +917,9 @@ export default function AdminMembers() {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
-  const realTeamNames = useMemo(() => new Set(teams.map(t => t.name)), [teams]);
-
-  // Team cards = real teams + synthetic buckets so NO member ever disappears.
-  const displayTeams = useMemo(() => {
-    const real = teams.map(t => ({ ...t, _key: t.name, synthetic: false }));
-
-    const buckets: Record<string, any[]> = {};
-    members.forEach(m => {
-      const k = teamKeyOf(m);
-      if (k !== UNASSIGNED_KEY && realTeamNames.has(k)) return; // already a real card
-      (buckets[k] ||= []).push(m);
-    });
-
-    const synthetic = Object.entries(buckets).map(([k, ms]) => ({
-      _id: `synthetic-${k}`,
-      _key: k,
-      synthetic: true,
-      name: k === UNASSIGNED_KEY ? 'Unassigned' : k,
-      description: k === UNASSIGNED_KEY
-        ? 'Members not yet assigned to a managed team.'
-        : 'Ad-hoc group derived from member records.',
-      coverImage: '',
-      isActive: true,
-      createdAt: null,
-      lead: null,
-      totalMembers: ms.length,
-      activeMembers: ms.filter(x => x.status === 'active').length,
-      blogs: 0, events: 0, resources: 0,
-    }));
-
-    return [...real, ...synthetic];
-  }, [teams, members, realTeamNames]);
+  // Team cards come ONLY from real Team documents — never derived from
+  // User.team strings, so no "Unassigned" or inferred buckets ever appear.
+  const displayTeams = useMemo(() => teams.map(t => ({ ...t, _key: t.name })), [teams]);
 
   const filteredTeams = useMemo(() => {
     const q = teamSearch.toLowerCase();
@@ -887,6 +966,23 @@ export default function AdminMembers() {
     active: members.filter(m => m.status === 'active').length,
   }), [teams, members]);
 
+  // Members shown when a global role tab (not 'All Teams') is active.
+  const roleTabMembers = useMemo(() => {
+    if (roleTab === 'All Teams') return [];
+    const q = roleTabSearch.trim().toLowerCase();
+    return members.filter(m => {
+      if (m.role !== roleTab) return false;
+      if (!q) return true;
+      return m.name?.toLowerCase().includes(q) || m.email?.toLowerCase().includes(q) || (m.team || '').toLowerCase().includes(q);
+    });
+  }, [members, roleTab, roleTabSearch]);
+
+  const selectRoleTab = (tab: string) => {
+    setRoleTab(tab);
+    setRoleTabSearch('');
+    setSelectedKey(null); // always return to the top-level view
+  };
+
   const handleToggleStatus = useCallback(async (member: any) => {
     if (!canManageMembers) return;
     setBusyId(member._id);
@@ -923,7 +1019,7 @@ export default function AdminMembers() {
         {promoting && <PromoteModal member={promoting} actor={actor} onClose={() => setPromoting(null)} onDone={fetchAll} />}
         {editing && <EditMemberModal member={editing} actor={actor} teamNames={teamNames} onClose={() => setEditing(null)} onDone={fetchAll} />}
         {permMember && <PermissionPanel member={permMember} actor={actor} onClose={() => setPermMember(null)} onDone={fetchAll} />}
-        {showCreateTeam && <CreateTeamModal actor={actor} onClose={() => setShowCreateTeam(false)} onDone={fetchAll} />}
+        {showCreateTeam && <CreateTeamModal actor={actor} teams={displayTeams} onClose={() => setShowCreateTeam(false)} onDone={fetchAll} />}
         {showEditTeam && selectedTeam && !selectedTeam.synthetic && (
           <EditTeamModal team={selectedTeam} teamMembers={teamMembers} actor={actor} onClose={() => setShowEditTeam(false)} onDone={fetchAll} />
         )}
@@ -981,25 +1077,82 @@ export default function AdminMembers() {
             ))}
           </div>
 
-          {/* Team search */}
-          <div className="relative w-full md:w-96 group">
-            <input type="text" placeholder="Search teams by name, description or leader…" value={teamSearch}
-              onChange={e => setTeamSearch(e.target.value)}
-              className="w-full bg-slate-950/40 border border-white/5 rounded-lg py-2.5 pl-11 pr-4 text-xs text-white focus:outline-none focus:border-blue-500/40" />
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-400" />
+          {/* Quick role filter tabs — surface Admin/President/OfficeBearer/PI/Alumni */}
+          <div className="flex flex-wrap items-center gap-2">
+            {ROLE_TABS.map(tab => {
+              const active = roleTab === tab;
+              const meta = ROLE_META[tab];
+              const Icon = tab === 'All Teams' ? Building2 : meta?.Icon;
+              return (
+                <button key={tab} onClick={() => selectRoleTab(tab)}
+                  className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition-all ${
+                    active
+                      ? 'bg-blue-600 text-white border-blue-500/40 shadow-lg'
+                      : 'bg-white/[0.02] text-slate-400 border-white/10 hover:bg-white/[0.05] hover:text-white'
+                  }`}>
+                  {Icon && <Icon className="w-3.5 h-3.5" />} {tab}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Cards */}
-          {filteredTeams.length === 0 ? (
-            <div className="p-12 text-center text-xs text-slate-500 bg-white/[0.01] border border-white/5 rounded-xl">
-              No teams match your search.
-            </div>
+          {roleTab === 'All Teams' ? (
+            <>
+              {/* Team search */}
+              <div className="relative w-full md:w-96 group">
+                <input type="text" placeholder="Search teams by name, description or leader…" value={teamSearch}
+                  onChange={e => setTeamSearch(e.target.value)}
+                  className="w-full bg-slate-950/40 border border-white/5 rounded-lg py-2.5 pl-11 pr-4 text-xs text-white focus:outline-none focus:border-blue-500/40" />
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-400" />
+              </div>
+
+              {/* Cards */}
+              {filteredTeams.length === 0 ? (
+                <div className="p-12 text-center text-xs text-slate-500 bg-white/[0.01] border border-white/5 rounded-xl">
+                  No teams match your search.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {filteredTeams.map((team, i) => (
+                    <TeamCard key={team._key} team={team} index={i} onOpen={() => openTeam(team._key)} />
+                  ))}
+                </div>
+              )}
+            </>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filteredTeams.map((team, i) => (
-                <TeamCard key={team._key} team={team} index={i} onOpen={() => openTeam(team._key)} />
-              ))}
-            </div>
+            // ═══════════ ROLE-FILTERED FLAT MEMBER LIST ═══════════
+            <>
+              <div className="flex flex-col md:flex-row justify-between gap-4 items-center">
+                <h2 className="text-sm font-black text-white flex items-center gap-2">
+                  {(() => { const I = ROLE_META[roleTab]?.Icon; return I ? <I className="w-4 h-4" style={{ color: ROLE_META[roleTab]?.color }} /> : null; })()}
+                  {roleTab}
+                  <span className="text-[10px] bg-white/10 px-1.5 py-0.5 rounded-full">{roleTabMembers.length}</span>
+                </h2>
+                <div className="relative flex-1 md:w-64 md:flex-none group">
+                  <input type="text" placeholder={`Search ${roleTab}…`} value={roleTabSearch}
+                    onChange={e => setRoleTabSearch(e.target.value)}
+                    className="w-full bg-slate-950/40 border border-white/5 rounded-lg py-2.5 pl-10 pr-4 text-xs text-white focus:outline-none focus:border-blue-500/40" />
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-400" />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {roleTabMembers.length === 0 ? (
+                  <div className="p-12 text-center text-xs text-slate-500 bg-white/[0.01] border border-white/5 rounded-xl">
+                    No {roleTab} members found.
+                  </div>
+                ) : (
+                  <AnimatePresence mode="popLayout">
+                    {roleTabMembers.map(member => (
+                      <MemberRow key={member._id} member={member} actor={actor}
+                        canManageMembers={canManageMembers} canManageRoles={canManageRoles} busyId={busyId}
+                        onToggle={handleToggleStatus} onDelete={handleDelete}
+                        onEdit={setEditing} onPromote={setPromoting} onPermissions={setPermMember} />
+                    ))}
+                  </AnimatePresence>
+                )}
+              </div>
+            </>
           )}
         </>
       ) : (

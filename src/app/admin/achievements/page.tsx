@@ -1,418 +1,356 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
-import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
-import {
-  Trophy, Plus, Search, ChevronDown, Trash2, Link2, Star,
-  RefreshCw, BarChart3, AlertCircle, Loader2, Users, Code, 
-  Settings, Eye, Award, TrendingUp, Sparkles, X
+import { 
+  Trophy, Plus, Trash2, Edit2, Eye, Search, Filter, CheckCircle2, 
+  Clock, AlertCircle, RefreshCw, X, Save, Image as ImageIcon, Link2, 
+  ExternalLink, Users, Calendar, MapPin, Building, Tag, Check, Ban, Star
 } from 'lucide-react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { useEffect, useState, useMemo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-// ─── Interfaces ──────────────────────────────────────────────────────────────
-interface AchievementItem {
-  id: string;
-  title: string;
-  description: string;
-  category: string; // Dynamic Domain Category
-  teamMembers: string[];
-  eventLink?: string;
-  year: string;
-  isFeatured: boolean;
-  views: number;
-  createdAt: string;
+function GlassCard({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return <div className={`rounded-3xl border border-white/[0.06] bg-white/[0.03] backdrop-blur-xl shadow-xl shadow-black/20 ${className}`}>{children}</div>;
 }
 
-interface ChartItem {
-  name: string;
-  Victories: number;
-}
+// Smart URL Extractor
+const parseImageLink = (url: string) => {
+  if (!url) return '';
+  const match = url.trim().match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || url.trim().match(/id=([a-zA-Z0-9_-]+)/);
+  return match ? `https://docs.google.com/uc?export=view&id=${match[1]}` : url.trim();
+};
 
-interface TimelineItem {
-  name: string;
-  Impressions: number;
-  Engagement: number;
-}
-
-const AnimatedNumber = memo(({ value }: { value: number }) => {
-  const [display, setDisplay] = useState(0);
-  useEffect(() => {
-    let start = 0;
-    const end = value;
-    if (start === end) return setDisplay(end);
-    const timer = setInterval(() => {
-      start += Math.ceil((end - start) / 10);
-      if (start >= end) { clearInterval(timer); setDisplay(end); }
-      else setDisplay(start);
-    }, 16);
-    return () => clearInterval(timer);
-  }, [value]);
-  return <>{display.toLocaleString()}</>;
-});
-AnimatedNumber.displayName = 'AnimatedNumber';
-
-export default function AdminAchievementsPage() {
-  const [achievements, setAchievements] = useState<AchievementItem[]>([]);
+export default function AdminClubAchievements() {
+  const [achievements, setAchievements] = useState<any[]>([]);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState('');
-
-  // ─── Pure Dynamic Admin Domains State (Empty by default) ───
-  const [domains, setDomains] = useState<string[]>([]);
-  const [newDomainInput, setNewDomainName] = useState('');
-  const [showDomainModal, setShowDomainModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  
+  const [showFormModal, setShowFormModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<any>(null);
+  const [editingItem, setEditingItem] = useState<any>(null);
 
   // Filters
+  const [searchQuery, setSearchQuery] = useState('');
   const [catFilter, setCatFilter] = useState('All');
-  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [featuredFilter, setFeaturedFilter] = useState('All');
 
-  // Modals Forms State
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [form, setForm] = useState({
-    title: '', description: '', category: '',
-    teamMembers: '', eventLink: '', year: '2026', isFeatured: false
-  });
-  const [submitting, setUploading] = useState(false);
-  const [formError, setFormError] = useState('');
-  const prefersReducedMotion = useReducedMotion();
-
-  // Live Track Stats
-  const [metrics, setMetrics] = useState({ totalViews: 0, interactions: 0 });
-
-  const fetchAchievements = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    try {
-      const url = `/api/admin/achievements?category=${catFilter}`;
-      const res = await fetch(url, { cache: 'no-store' });
-      const data = await res.json();
-      if (data.success) {
-        setAchievements(data.achievements);
-        
-        // Extract domains dynamically if they exist in DB records to stay synced
-        const dbCategories = data.achievements.map((a: any) => a.category);
-        if (dbCategories.length > 0) {
-          setDomains(prev => Array.from(new Set([...prev, ...dbCategories])));
-        }
-        
-        // Calculate live views and interactions
-        const totalViews = data.achievements.reduce((sum: number, a: any) => sum + (a.views || 0), 0);
-        setMetrics({ totalViews, interactions: data.achievements.length * 3 });
-        setError('');
-      }
-    } catch (err: any) {
-      console.warn('Backend endpoint pending initialization.');
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, [catFilter]);
-
-  useEffect(() => {
-    fetchAchievements();
-  }, [fetchAchievements]);
-
-  // Dynamic distribution mapping for charts based on added domains only
-  const computedChartData = useMemo<ChartItem[]>(() => {
-    const counts: Record<string, number> = {};
-    domains.forEach(d => { counts[d] = 0; });
-    achievements.forEach(a => {
-      if (counts[a.category] !== undefined) counts[a.category]++;
-    });
-    return Object.entries(counts).map(([name, count]) => ({ name, Victories: count }));
-  }, [achievements, domains]);
-
-  const performanceTimeline = useMemo<TimelineItem[]>(() => [
-    { name: 'Phase 1', Impressions: Math.round(metrics.totalViews * 0.3), Engagement: Math.round(metrics.interactions * 0.3) },
-    { name: 'Phase 2', Impressions: Math.round(metrics.totalViews * 0.6), Engagement: Math.round(metrics.interactions * 0.6) },
-    { name: 'Live Stream', Impressions: metrics.totalViews, Engagement: metrics.interactions },
-  ], [metrics]);
-
-  const handleAddDomain = () => {
-    if (!newDomainInput.trim()) return;
-    const cleanDomain = newDomainInput.trim();
-    if (domains.includes(cleanDomain)) { alert('Domain already exists.'); return; }
-    
-    setDomains([...domains, cleanDomain]);
-    setForm(f => ({ ...f, category: cleanDomain }));
-    setNewDomainName('');
-    setShowDomainModal(false);
+  const blankForm = {
+    title: '', description: '', category: 'Hackathon', teamMembers: '', coverImage: '',
+    gallery: '', venue: '', achievementDate: '', organizer: '', tags: '', eventLink: '', isFeatured: false
   };
+  const [form, setForm] = useState(blankForm);
+
+  const fetchData = async () => {
+    try {
+      const userRes = await fetch('/api/user/me');
+      const userData = await userRes.json();
+      if (userData.success) setCurrentUser(userData.user);
+
+      const res = await fetch('/api/admin/achievements');
+      const data = await res.json();
+      if (data.success) setAchievements(data.achievements || []);
+    } catch (err) { console.error(err); } 
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const isSuperManager = ['Admin', 'President', 'OfficeBearer'].includes(currentUser?.role);
 
   const handleSubmit = async () => {
-    if (domains.length === 0) {
-      setFormError('Please add at least one Domain/Category first.'); return;
+    if (!form.title || !form.description || !form.teamMembers || !form.coverImage || !form.achievementDate) {
+      return alert('Missing required fields: Title, Description, Team, Cover Image, Date.');
     }
-    if (!form.title || !form.description || !form.teamMembers || !form.category) {
-      setFormError('Please complete all compulsory parameters.'); return;
-    }
-    setUploading(true); setFormError('');
     try {
-      const res = await fetch('/api/admin/achievements', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
-      });
-      const data = await res.json();
-      if (data.success) {
-        setShowAddModal(false);
-        setForm(f => ({ ...f, title: '', description: '', teamMembers: '', eventLink: '', isFeatured: false }));
-        await fetchAchievements(true);
-      } else {
-        setFormError(data.error || 'Server validation error.');
-      }
-    } catch (err) {
-      // Offline fallback processing simulator
-      setShowAddModal(false);
-      const mockItem: AchievementItem = {
-        id: Math.random().toString(),
-        title: form.title,
-        description: form.description,
-        category: form.category,
-        teamMembers: form.teamMembers.split(',').map(m => m.trim()),
-        eventLink: form.eventLink,
-        year: form.year,
-        isFeatured: form.isFeatured,
-        views: 12,
-        createdAt: new Date().toISOString()
+      setSaving(true);
+      const payload = {
+        ...form,
+        coverImage: parseImageLink(form.coverImage),
+        gallery: form.gallery.split(',').map(parseImageLink).join(',')
       };
-      setAchievements(prev => [mockItem, ...prev]);
-    } finally {
-      setUploading(false);
-    }
+
+      const url = editingItem ? `/api/admin/achievements` : '/api/admin/achievements';
+      const method = editingItem ? 'PUT' : 'POST';
+      if (editingItem) (payload as any).id = editingItem.id;
+
+      const res = await fetch(url, {
+        method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
+      if (res.ok) {
+        setShowFormModal(false); setEditingItem(null); fetchData();
+      } else {
+        const errorData = await res.json();
+        alert(errorData.error || 'Submission failed.');
+      }
+    } catch { alert('Network error.'); } 
+    finally { setSaving(false); }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this milestone record?')) return;
+  const updateStatus = async (id: string, status: string) => {
     try {
-      await fetch(`/api/admin/achievements?id=${id}`, { method: 'DELETE' });
-      setAchievements(prev => prev.filter(a => a.id !== id));
-    } catch { alert('Network fault occurred.'); }
+      await fetch(`/api/admin/achievements`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, status })
+      });
+      fetchData();
+    } catch { alert('Failed to update status.'); }
+  };
+
+  const handleDelete = async (item: any) => {
+    if (!isSuperManager && (item.uploadedBy !== currentUser?._id || item.status !== 'Pending')) {
+      return alert('You can only delete your own pending achievements.');
+    }
+    if (!confirm('Permanently delete this achievement?')) return;
+    await fetch(`/api/admin/achievements?id=${item.id}`, { method: 'DELETE' });
+    fetchData();
+  };
+
+  const openEdit = (item: any) => {
+    if (!isSuperManager && (item.uploadedBy !== currentUser?._id || item.status !== 'Pending')) {
+      return alert('You can only edit your own pending achievements.');
+    }
+    setForm({
+      title: item.title, description: item.description, category: item.category,
+      teamMembers: item.teamMembers?.join(', ') || '', coverImage: item.coverImage || '',
+      gallery: item.gallery?.join(', ') || '', venue: item.venue || '',
+      achievementDate: new Date(item.achievementDate).toISOString().split('T')[0],
+      organizer: item.organizer || '', tags: item.tags?.join(', ') || '',
+      eventLink: item.eventLink || '', isFeatured: item.isFeatured || false
+    });
+    setEditingItem(item);
+    setShowFormModal(true);
   };
 
   const filteredItems = useMemo(() => {
-    const q = search.toLowerCase();
-    return achievements.filter(a => {
-      const matchQ = !q || a.title.toLowerCase().includes(q) || a.description.toLowerCase().includes(q) || a.teamMembers.join(' ').toLowerCase().includes(q);
-      const matchC = catFilter === 'All' || a.category === catFilter;
-      return matchQ && matchC;
+    return achievements.filter(item => {
+      const q = searchQuery.toLowerCase();
+      const matchSearch = item.title?.toLowerCase().includes(q) || item.teamMembers?.join(' ').toLowerCase().includes(q);
+      const matchCat = catFilter === 'All' || item.category === catFilter;
+      const matchStatus = statusFilter === 'All' || item.status === statusFilter;
+      const matchFeat = featuredFilter === 'All' || (featuredFilter === 'Featured' ? item.isFeatured : !item.isFeatured);
+      return matchSearch && matchCat && matchStatus && matchFeat;
     });
-  }, [achievements, search, catFilter]);
+  }, [achievements, searchQuery, catFilter, statusFilter, featuredFilter]);
+
+  if (loading) return <div className="flex items-center justify-center h-screen"><RefreshCw className="w-5 h-5 animate-spin text-primary" /></div>;
 
   return (
-    <div className="p-4 space-y-5 max-w-7xl mx-auto text-gray-100">
+    <div className="min-h-screen pb-16 space-y-6 bg-[#0d1117] text-gray-100 p-4 md:p-6 select-none">
       
-      {/* ── Modals Popups System ── */}
+      {/* HEADER */}
+      <GlassCard className="p-6 relative overflow-hidden">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-10">
+          <div>
+            <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+              <Trophy className="w-6 h-6 text-amber-400" /> Club Achievements
+            </h1>
+            <p className="text-xs text-slate-400 mt-1">Manage global club milestones, hackathon wins, and open source records.</p>
+          </div>
+          <button onClick={() => { setForm(blankForm); setEditingItem(null); setShowFormModal(true); }} className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white font-bold text-xs rounded-xl shadow-lg">
+            <Plus className="w-4 h-4" /> Add Achievement
+          </button>
+        </div>
+      </GlassCard>
+
+      {/* FILTERS */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 p-3 bg-white/[0.01] border border-white/[0.05] rounded-2xl text-xs">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search title or team..." className="w-full bg-black/40 border border-white/10 rounded-xl pl-9 pr-4 py-2 outline-none focus:border-primary" />
+        </div>
+        <select value={catFilter} onChange={e => setCatFilter(e.target.value)} className="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-slate-300 outline-none">
+          <option value="All">All Categories</option>
+          <option value="Hackathon">Hackathon</option>
+          <option value="Open Source">Open Source</option>
+          <option value="Project Milestone">Project Milestone</option>
+          <option value="Research Paper">Research Paper</option>
+        </select>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-slate-300 outline-none">
+          <option value="All">All Statuses</option>
+          <option value="Published">Published</option>
+          <option value="Pending">Pending</option>
+          <option value="Rejected">Rejected</option>
+        </select>
+        <select value={featuredFilter} onChange={e => setFeaturedFilter(e.target.value)} className="bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-slate-300 outline-none">
+          <option value="All">All Features</option>
+          <option value="Featured">Featured Only</option>
+        </select>
+      </div>
+
+      {/* TABLE */}
+      <GlassCard className="overflow-hidden p-2">
+        <div className="overflow-x-auto rounded-2xl border border-white/[0.04]">
+          <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+            <thead>
+              <tr className="bg-white/[0.02] border-b border-white/[0.06] text-slate-500">
+                <th className="p-4 font-bold">Achievement</th>
+                <th className="p-4 font-bold">Team</th>
+                <th className="p-4 font-bold">Uploaded By</th>
+                <th className="p-4 font-bold">Date</th>
+                <th className="p-4 font-bold">Status</th>
+                <th className="p-4 font-bold text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredItems.map((item) => (
+                <tr key={item.id} className="border-b border-white/[0.03] hover:bg-white/[0.01] transition-all">
+                  <td className="p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-10 bg-black/40 rounded-lg overflow-hidden border border-white/5 shrink-0">
+                        {item.coverImage ? <img src={item.coverImage} className="w-full h-full object-cover" /> : <ImageIcon className="w-4 h-4 text-slate-500 m-auto mt-3" />}
+                      </div>
+                      <div>
+                        <span className="font-bold text-white block truncate max-w-[180px] flex items-center gap-1.5">
+                          {item.title} {item.isFeatured && <Star className="w-3 h-3 text-amber-400 fill-amber-400" />}
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-500 uppercase mt-0.5 block">{item.category}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="p-4 text-slate-400 truncate max-w-[150px]">{item.teamMembers?.join(', ')}</td>
+                  <td className="p-4 text-slate-500">{item.uploaderName}</td>
+                  <td className="p-4 text-slate-500 font-mono">{new Date(item.achievementDate).toLocaleDateString()}</td>
+                  <td className="p-4">
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${
+                      item.status === 'Published' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
+                      item.status === 'Rejected' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
+                      'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                    }`}>{item.status}</span>
+                  </td>
+                  <td className="p-4 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => setSelectedItem(item)} className="p-1.5 rounded-lg text-slate-400 hover:text-white bg-white/5"><Eye className="w-3.5 h-3.5" /></button>
+                      
+                      {isSuperManager && item.status === 'Pending' && (
+                        <>
+                          <button onClick={() => updateStatus(item.id, 'Published')} className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-500/10 bg-white/5"><Check className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => updateStatus(item.id, 'Rejected')} className="p-1.5 rounded-lg text-red-400 hover:bg-red-500/10 bg-white/5"><Ban className="w-3.5 h-3.5" /></button>
+                        </>
+                      )}
+
+                      {(isSuperManager || (item.uploadedBy === currentUser?._id && item.status === 'Pending')) && (
+                        <>
+                          <button onClick={() => openEdit(item)} className="p-1.5 rounded-lg text-blue-400 hover:bg-blue-500/10 bg-white/5"><Edit2 className="w-3.5 h-3.5" /></button>
+                          <button onClick={() => handleDelete(item)} className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 bg-white/5"><Trash2 className="w-3.5 h-3.5" /></button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {filteredItems.length === 0 && <div className="p-10 text-center text-slate-500 text-xs">No records found.</div>}
+        </div>
+      </GlassCard>
+
+      {/* ── DETAIL MODAL ── */}
       <AnimatePresence>
-        {showDomainModal && (
-          <>
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={() => setShowDomainModal(false)} />
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} className="w-full max-w-sm bg-gray-900 border border-white/10 rounded-2xl p-5 space-y-4">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2"><Settings className="w-4 h-4 text-amber-400" /> Create Custom Tech Domain</h3>
-                <input
-                  className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs outline-none focus:border-amber-500"
-                  placeholder="e.g. GitHappens Hackathons" value={newDomainInput} onChange={e => setNewDomainName(e.target.value)}
-                />
-                <div className="flex justify-end gap-2 pt-1">
-                  <button onClick={() => setShowDomainModal(false)} className="text-xs text-gray-400 px-3 py-1.5">Cancel</button>
-                  <button onClick={handleAddDomain} className="text-xs font-bold bg-amber-600 px-4 py-1.5 rounded-xl text-white">Register Domain</button>
+        {selectedItem && (
+          <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-4" onClick={() => setSelectedItem(null)}>
+            <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} onClick={e => e.stopPropagation()} className="w-full max-w-2xl bg-[#0f141c] border border-white/10 rounded-3xl overflow-hidden shadow-2xl relative text-xs text-slate-300 max-h-[90vh] overflow-y-auto scrollbar-none">
+              <div className="relative h-56 bg-slate-950">
+                {selectedItem.coverImage && <img src={selectedItem.coverImage} className="w-full h-full object-cover opacity-60" />}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0f141c] to-transparent" />
+                <button onClick={() => setSelectedItem(null)} className="absolute top-4 right-4 p-1.5 bg-black/50 text-white rounded-lg"><X className="w-4 h-4" /></button>
+                {selectedItem.isFeatured && <span className="absolute top-4 left-4 bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1 rounded-full font-bold flex items-center gap-1"><Star className="w-3 h-3 fill-amber-400" /> Featured</span>}
+              </div>
+              <div className="p-6 space-y-5">
+                <div>
+                  <h3 className="text-xl font-black text-white">{selectedItem.title}</h3>
+                  <p className="text-[10px] text-primary font-mono uppercase tracking-wider mt-1">{selectedItem.category}</p>
                 </div>
-              </motion.div>
-            </div>
-          </>
-        )}
+                <p className="text-slate-400 leading-relaxed text-sm">{selectedItem.description}</p>
+                
+                <div className="grid grid-cols-2 gap-4 font-mono bg-white/[0.02] border border-white/5 p-4 rounded-xl">
+                  <div className="flex items-start gap-2"><Users className="w-4 h-4 shrink-0 text-slate-500" /> <div><span className="block text-slate-500 mb-1">Team</span><span className="text-white">{selectedItem.teamMembers?.join(', ')}</span></div></div>
+                  <div className="flex items-start gap-2"><Calendar className="w-4 h-4 shrink-0 text-slate-500" /> <div><span className="block text-slate-500 mb-1">Date</span><span className="text-white">{new Date(selectedItem.achievementDate).toLocaleDateString()}</span></div></div>
+                  {selectedItem.venue && <div className="flex items-start gap-2"><MapPin className="w-4 h-4 shrink-0 text-slate-500" /> <div><span className="block text-slate-500 mb-1">Venue</span><span className="text-white">{selectedItem.venue}</span></div></div>}
+                  {selectedItem.organizer && <div className="flex items-start gap-2"><Building className="w-4 h-4 shrink-0 text-slate-500" /> <div><span className="block text-slate-500 mb-1">Organizer</span><span className="text-white">{selectedItem.organizer}</span></div></div>}
+                </div>
 
-        {showAddModal && (
-          <>
-            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={() => setShowAddModal(false)} />
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 15 }} className="w-full max-w-lg bg-gray-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06]">
-                  <div className="flex items-center gap-2.5"><Trophy className="w-4 h-4 text-amber-400" /><h2 className="text-sm font-bold text-white">Log Global Achievements Roster</h2></div>
-                  <button onClick={() => setShowAddModal(false)} className="text-gray-400 text-sm hover:text-white">✕</button>
-                </div>
-                <div className="px-6 py-5 space-y-4 max-h-[65vh] overflow-y-auto">
-                  {formError && <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400">{formError}</div>}
-                  
-                  <div>
-                    <label className="block text-[11px] text-gray-400 mb-1 font-medium">Victory / Milestone Title *</label>
-                    <input className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl text-xs text-white px-3 py-2 outline-none focus:border-amber-500" placeholder="e.g. 1st Place in Smart India Hackathon" value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} />
+                {selectedItem.tags?.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    <Tag className="w-4 h-4 text-slate-500" /> {selectedItem.tags.map((t: string, i: number) => <span key={i} className="px-2 py-0.5 bg-white/5 rounded text-[10px]">{t}</span>)}
                   </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] text-gray-400 mb-1 font-medium">Select Registered Domain *</label>
-                      <select className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl text-xs text-white px-3 py-2 outline-none" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-                        <option value="" disabled className="text-gray-600">-- Choose Domain --</option>
-                        {domains.map(c => <option key={c} value={c} className="bg-gray-900">{c}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] text-gray-400 mb-1 font-medium">Session Year</label>
-                      <input className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl text-xs text-white px-3 py-2 outline-none" placeholder="e.g. 2025-26" value={form.year} onChange={e => setForm({ ...form, year: e.target.value })} />
+                )}
+                
+                {selectedItem.gallery?.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="font-bold text-slate-500 uppercase tracking-widest">Gallery</p>
+                    <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-none">
+                      {selectedItem.gallery.map((g: string, i: number) => <img key={i} src={g} className="w-24 h-24 object-cover rounded-xl border border-white/10 shrink-0" />)}
                     </div>
                   </div>
+                )}
 
-                  <div>
-                    <label className="block text-[11px] text-gray-400 mb-1 font-medium">Achievers / Team Members * (Comma Separated)</label>
-                    <input className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl text-xs text-white px-3 py-2 outline-none" placeholder="e.g. Ehtesham Aalam, Saurabh Kumar" value={form.teamMembers} onChange={e => setForm({ ...form, teamMembers: e.target.value })} />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] text-gray-400 mb-1 font-medium">Victories Detailed Description *</label>
-                    <textarea rows={3} className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl text-xs text-white px-3 py-2 outline-none resize-none" placeholder="Describe the hackathon track, technological stack built..." value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} />
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="col-span-2">
-                      <label className="block text-[11px] text-gray-400 mb-1 font-medium">Verification Reference URL (Drive/Credentials)</label>
-                      <input className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl text-xs text-white px-3 py-2 outline-none" placeholder="https://tesla-nitp.vercel.app/..." value={form.eventLink} onChange={e => setForm({ ...form, eventLink: e.target.value })} />
-                    </div>
-                    <div className="flex items-end pb-2">
-                      <button type="button" onClick={() => setForm({ ...form, isFeatured: !form.isFeatured })} className="flex items-center gap-2 select-none">
-                        <div className={`w-8 h-4.5 rounded-full transition-colors relative ${form.isFeatured ? 'bg-amber-500' : 'bg-white/10'}`}><div className={`absolute top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-transform ${form.isFeatured ? 'translate-x-3.5' : 'translate-x-0.5'}`} /></div>
-                        <span className="text-[10px] text-gray-400 font-bold">Featured badge</span>
-                      </button>
-                    </div>
-                  </div>
+                <div className="pt-4 border-t border-white/5 flex justify-between items-center">
+                  <span className="text-slate-500 font-mono">Uploaded by {selectedItem.uploaderName}</span>
+                  {selectedItem.eventLink && <a href={selectedItem.eventLink} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 bg-blue-500/10 px-4 py-2 rounded-xl font-bold"><ExternalLink className="w-3.5 h-3.5" /> Reference Link</a>}
                 </div>
-                <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-white/[0.06] bg-white/[0.01]">
-                  <button onClick={() => setShowAddModal(false)} className="px-4 py-2 rounded-xl text-xs font-semibold text-gray-400">Cancel</button>
-                  <button onClick={handleSubmit} disabled={submitting} className="px-5 py-2 rounded-xl text-xs font-bold bg-amber-600 text-white disabled:opacity-40">Confirm Injection</button>
-                </div>
-              </motion.div>
-            </div>
-          </>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
-      {/* ── Top Header Section ── */}
-      <div className="relative overflow-hidden rounded-2xl bg-white/[0.02] border border-white/[0.06] p-5">
-        <div className="relative flex flex-wrap items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2.5"><Trophy className="w-5 h-5 text-amber-400" /><h1 className="text-xl lg:text-2xl font-extrabold text-white tracking-tight">T.E.S.L.A Honors Control Panel</h1></div>
-            <p className="text-xs text-gray-400">Moderate cumulative open-source accomplishments, hackathons wins, and track alumni metrics indexes.</p>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => setShowDomainModal(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-semibold text-purple-400 hover:bg-purple-500/10">
-              <Settings className="w-3.5 h-3.5" /> Add Domain
-            </button>
-            <button onClick={() => { if(domains.length === 0) { alert('Please create a domain first using the "Add Domain" button.'); return; } setForm(f => ({ ...f, category: domains[0] })); setShowAddModal(true); }} className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold shadow-lg shadow-amber-500/25">
-              <Plus className="w-3.5 h-3.5" /> Log Milestone
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Premium Analytical Split Charts Row Panel ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Domain-wise metrics visualization */}
-        <div className="lg:col-span-2 bg-white/[0.015] border border-white/[0.06] rounded-2xl p-4 flex flex-col justify-between">
-          <div className="flex items-center gap-2 mb-3"><BarChart3 className="w-4 h-4 text-amber-400" /><h3 className="text-xs font-bold text-gray-300">Milestones Distribution Matrix</h3></div>
-          <div className="w-full h-44">
-            {domains.length === 0 ? (
-              <div className="h-full flex items-center justify-center text-xs text-gray-600">Add custom domains to populate the layout graph metrics.</div>
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={computedChartData} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
-                  <XAxis dataKey="name" stroke="#4b5563" fontSize={9} tickLine={false} />
-                  <YAxis stroke="#4b5563" fontSize={10} allowDecimals={false} tickLine={false} />
-                  <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', fontSize: 10 }} />
-                  <Bar dataKey="Victories" fill="#d97706" radius={[3, 3, 0, 0]} barSize={30} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-
-        {/* Live Traffic Monitoring */}
-        <div className="bg-white/[0.015] border border-white/[0.06] rounded-2xl p-4 flex flex-col justify-between">
-          <div className="flex items-center gap-2 mb-3"><TrendingUp className="w-4 h-4 text-emerald-400" /><h3 className="text-xs font-bold text-gray-300">Roster Hits Stream Audit Logs</h3></div>
-          <div className="w-full h-44">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={performanceTimeline} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
-                <defs>
-                  <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#10b981" stopOpacity={0.2}/><stop offset="95%" stopColor="#10b981" stopOpacity={0}/></linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.02)" />
-                <XAxis dataKey="name" stroke="#4b5563" fontSize={9} tickLine={false} />
-                <YAxis stroke="#4b5563" fontSize={10} tickLine={false} />
-                <Tooltip contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,0.1)', fontSize: 10 }} />
-                <Area type="monotone" dataKey="Impressions" stroke="#10b981" fillOpacity={1} fill="url(#colorImpressions)" strokeWidth={2} />
-                <Area type="monotone" dataKey="Engagement" stroke="#6366f1" fillOpacity={0} strokeWidth={1.5} strokeDasharray="3 3" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* ── Micro Metrics Counters Roster ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Cumulative Ingested Milestones', value: achievements.length, color: '#f59e0b', Icon: Trophy },
-          { label: 'Featured Main Highlight Displays', value: achievements.filter(a => a.isFeatured).length, color: '#a78bfa', Icon: Sparkles },
-          { label: 'Roster Logs Impressions', value: metrics.totalViews, color: '#10b981', Icon: Eye },
-          { label: 'Interactive Audits Handled', value: metrics.interactions, color: '#06b6d4', Icon: Users },
-        ].map((s) => (
-          <div key={s.label} className="bg-white/[0.015] border border-white/[0.06] rounded-2xl p-4">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center border mb-2" style={{ background: `${s.color}12`, borderColor: `${s.color}25` }}><s.Icon style={{ color: s.color, width: 14, height: 14 }} /></div>
-            <p className="text-xl font-black text-white leading-none tracking-tight"><AnimatedNumber value={s.value} /></p>
-            <p className="text-[10px] text-gray-500 font-medium mt-1.5 leading-tight">{s.label}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Filtering Action Control Bar ── */}
-      <div className="bg-white/[0.025] border border-white/[0.06] rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="relative">
-          <select className="appearance-none bg-white/[0.04] border border-white/[0.08] rounded-xl text-xs text-gray-300 px-3 py-2 pr-9 outline-none cursor-pointer" value={catFilter} onChange={e => setCatFilter(e.target.value)}>
-            <option value="All">All Tech Domains</option>
-            {domains.map(d => <option key={d} value={d} className="bg-gray-900">{d}</option>)}
-          </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-600 pointer-events-none" />
-        </div>
-        <div className="flex items-center gap-2 bg-white/[0.04] border border-white/[0.08] rounded-xl px-3 py-1.5 w-full sm:w-56">
-          <Search className="w-3 h-3 text-gray-600" />
-          <input className="bg-transparent text-gray-200 text-xs outline-none w-full placeholder-gray-600" placeholder="Filter rosters identity..." value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
-      </div>
-
-      {/* ── Achievements Fluid Card Display Matrix ── */}
-      {filteredItems.length === 0 ? (
-        <div className="text-center py-16 border border-white/[0.05] rounded-xl text-xs text-gray-500">No active milestones recorded under these parameters.</div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredItems.map((item, index) => (
-            <div key={item.id || index} className="bg-white/[0.015] border border-white/[0.06] rounded-2xl p-5 hover:border-white/10 relative transition-all group">
-              <div className="flex items-start justify-between border-b border-white/[0.05] pb-3 mb-3">
-                <div className="space-y-1 pr-4">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="text-sm font-bold text-white tracking-tight">{item.title}</h3>
-                    {item.isFeatured && <Star className="w-3 h-3 text-amber-400 fill-amber-400 flex-shrink-0" />}
+      {/* ── CREATE / EDIT MODAL ── */}
+      <AnimatePresence>
+        {showFormModal && (
+          <div className="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-2xl bg-[#0f141c] border border-white/10 rounded-3xl p-6 space-y-4 shadow-2xl text-xs max-h-[90vh] overflow-y-auto scrollbar-none">
+              <div className="flex justify-between items-center border-b border-white/5 pb-3">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2"><Trophy className="w-4 h-4 text-primary" /> {editingItem ? 'Edit Achievement' : 'Add New Achievement'}</h3>
+                <button onClick={() => setShowFormModal(false)} className="text-slate-500"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="block text-slate-400 mb-1">Title *</label><input value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl outline-none" /></div>
+                  <div>
+                    <label className="block text-slate-400 mb-1">Category *</label>
+                    <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl outline-none bg-[#0f141c]">
+                      <option>Hackathon</option><option>Open Source</option><option>Project Milestone</option><option>Research Paper</option><option>Other</option>
+                    </select>
                   </div>
-                  <p className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{item.category} · Session {item.year}</p>
                 </div>
+
+                <div><label className="block text-slate-400 mb-1">Description *</label><textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3} className="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl outline-none resize-none" /></div>
                 
-                <button onClick={() => handleDelete(item.id)} className="w-7 h-7 rounded-lg border border-white/5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 flex items-center justify-center transition-all opacity-0 group-hover:opacity-100">
-                  <Trash2 className="w-3.5 h-3.5" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="block text-slate-400 mb-1">Cover Image URL *</label><input value={form.coverImage} onChange={e => setForm({...form, coverImage: e.target.value})} className="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl outline-none text-blue-400 font-mono" placeholder="Drive / Image Link" /></div>
+                  <div><label className="block text-slate-400 mb-1">Achievement Date *</label><input type="date" value={form.achievementDate} onChange={e => setForm({...form, achievementDate: e.target.value})} className="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl outline-none" style={{ colorScheme: 'dark' }} /></div>
+                </div>
+
+                <div><label className="block text-slate-400 mb-1">Team Members (Comma separated) *</label><input value={form.teamMembers} onChange={e => setForm({...form, teamMembers: e.target.value})} className="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl outline-none" /></div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="block text-slate-400 mb-1">Venue</label><input value={form.venue} onChange={e => setForm({...form, venue: e.target.value})} className="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl outline-none" /></div>
+                  <div><label className="block text-slate-400 mb-1">Organizer</label><input value={form.organizer} onChange={e => setForm({...form, organizer: e.target.value})} className="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl outline-none" /></div>
+                </div>
+
+                <div><label className="block text-slate-400 mb-1">Gallery Images (Comma separated URLs)</label><input value={form.gallery} onChange={e => setForm({...form, gallery: e.target.value})} className="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl outline-none font-mono" /></div>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label className="block text-slate-400 mb-1">Tags (Comma separated)</label><input value={form.tags} onChange={e => setForm({...form, tags: e.target.value})} className="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl outline-none" /></div>
+                  <div><label className="block text-slate-400 mb-1">External Link</label><input value={form.eventLink} onChange={e => setForm({...form, eventLink: e.target.value})} className="w-full p-2.5 bg-black/40 border border-white/10 rounded-xl outline-none text-blue-400" /></div>
+                </div>
+
+                {isSuperManager && (
+                  <div className="flex items-center gap-2 pt-2">
+                    <input type="checkbox" checked={form.isFeatured} onChange={e => setForm({...form, isFeatured: e.target.checked})} className="w-4 h-4 accent-amber-500 cursor-pointer" />
+                    <label className="text-amber-400 font-bold">Mark as Featured Achievement</label>
+                  </div>
+                )}
+
+                <button disabled={saving} onClick={handleSubmit} className="w-full bg-primary py-3 rounded-xl font-bold text-white transition-all mt-4 flex items-center justify-center gap-2">
+                  {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} {editingItem ? 'Update Record' : 'Submit Achievement'}
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
-              <p className="text-xs text-gray-400 leading-relaxed mb-4">{item.description}</p>
-              
-              <div className="flex items-center justify-between gap-4 bg-white/[0.01] border border-white/[0.03] rounded-xl p-2 px-3 text-[11px]">
-                <div className="truncate text-gray-500 font-medium">Team: <span className="text-indigo-400 font-semibold">{item.teamMembers.join(', ')}</span></div>
-                {item.eventLink && (
-                  <a href={item.eventLink} target="_blank" rel="noreferrer" className="text-amber-400 flex items-center gap-1 hover:text-amber-300 shrink-0 font-bold">
-                    <Link2 className="w-3 h-3" /> Proof Verification
-                  </a>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

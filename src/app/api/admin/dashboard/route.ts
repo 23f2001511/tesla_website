@@ -9,7 +9,8 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const { response: authError } = await requireRole(['Admin', 'President']);
+    // Read-only analytics — every admin-panel role may view them.
+    const { response: authError } = await requireRole(['Admin', 'President', 'OfficeBearer']);
     if (authError) return authError;
 
     await connectDB();

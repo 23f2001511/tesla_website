@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Menu, X, Settings } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { SidebarLogo } from '@/components/logo/SidebarLogo';
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
@@ -25,15 +26,8 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-20">
           <div className="flex-shrink-0 flex items-center gap-2">
-            <Link href="/" className="flex items-center gap-3 group">
-              {/* Replace with actual logo if available */}
-              <div className="w-10 h-10 bg-primary/20 rounded-xl flex items-center justify-center border border-primary/30 group-hover:glow-box transition-all">
-                <span className="text-xl font-bold text-primary">T</span>
-              </div>
-              <div className="flex flex-col">
-                <span className="font-bold text-xl leading-none text-white tracking-wider">TESLA</span>
-                <span className="text-[10px] text-muted-foreground uppercase tracking-[0.2em]">Technical Club</span>
-              </div>
+            <Link href="/" className="group">
+              <SidebarLogo className="group-hover:glow-box transition-all duration-300" />
             </Link>
           </div>
           

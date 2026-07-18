@@ -6,7 +6,8 @@ import {
   Calendar, MapPin, Clock, FileText, ArrowUpRight,
   Globe, Eye, ChevronRight, RefreshCw,
   Code2, Terminal, ShieldAlert, Cpu, Radio, GitBranch,
-  UserPlus, UserMinus, FileCheck, Building2, Mail
+  UserPlus, UserMinus, Building2, Mail,
+  X, Check, Loader2, Trash2, ImageIcon, Settings2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -34,16 +35,14 @@ type MemberStatus = 'Active' | 'Inactive' | 'On Leave';
 type Priority = 'High' | 'Medium' | 'Low';
 type TaskStatus = 'In Progress' | 'Completed' | 'Pending' | 'Under Review';
 
-// Admin-only operations — gated by the existing permission system. A Team
-// Leader without the permission sees them locked (the default for this page).
-const restrictedActions = [
-  { label: 'Add New Member',         icon: UserPlus,  note: 'Requires Admin Approval', permission: 'members:create' },
-  { label: 'Remove Member',          icon: UserMinus, note: 'Requires Admin Approval', permission: 'members:delete' },
-  { label: 'Approve Resources',      icon: FileCheck, note: 'Requires Admin Approval', permission: 'resources:approve' },
-  { label: 'Publish Blogs Globally', icon: Globe,     note: 'Requires Admin Approval', permission: 'blogs:publish' },
-  { label: 'Upload Resources',       icon: FileText,  note: 'Requires Admin Approval', permission: 'resources:upload' },
-  { label: 'Create Events',          icon: Calendar,  note: 'Requires Admin Approval', permission: 'events:create' },
-  { label: 'Edit Team Information',  icon: Building2,  note: 'Requires Admin Approval', permission: 'team:edit' },
+// Team-management actions — gated by the existing permission system. Each one is
+// UNLOCKED the moment a manager grants the matching permission and re-locks when
+// revoked. The keys mirror src/lib/permissions.ts (TL_PERMISSIONS).
+type TeamAction = 'add' | 'remove' | 'edit';
+const teamActions: { key: TeamAction; label: string; icon: any; note: string; permission: string }[] = [
+  { key: 'add',    label: 'Add Member',           icon: UserPlus,  note: 'Requires the “Add Team Member” permission',    permission: 'members:create' },
+  { key: 'remove', label: 'Remove Member',        icon: UserMinus, note: 'Requires the “Remove Team Member” permission', permission: 'members:delete' },
+  { key: 'edit',   label: 'Edit Team Information', icon: Settings2, note: 'Requires the “Edit Team Information” permission', permission: 'team:edit' },
 ];
 
 // Helpers for rendering real members.
@@ -143,6 +142,229 @@ function LiveClock() {
   );
 }
 
+/* ─────────────────────────── DIALOGS ─────────────────────────── */
+// All Team-Leader actions happen through these popups — never a page navigation.
+
+function ModalShell({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
+  return (
+    <>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40" onClick={onClose} />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.96, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.96, y: 10 }}
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+      >
+        <div className="pointer-events-auto w-full max-w-md rounded-3xl border border-white/[0.08] bg-[#0d1117] shadow-2xl shadow-black/40 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+          {children}
+        </div>
+      </motion.div>
+    </>
+  );
+}
+
+const inputCls = 'w-full p-2.5 rounded-xl bg-white/[0.04] border border-white/10 text-white text-sm outline-none focus:border-indigo-500/60 transition-colors';
+const labelCls = 'block text-xs text-slate-400 mb-1.5 font-medium';
+
+// ── Add Member ──
+function AddMemberDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    if (!form.name.trim() || !form.email.trim() || !form.password) { setError('Name, email and password are required.'); return; }
+    setSubmitting(true); setError('');
+    try {
+      const res = await fetch('/api/admin/members', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!data.success) { setError(data.message || 'Could not add member.'); return; }
+      onDone(); onClose();
+    } catch { setError('Could not reach the server. The member was not added.'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <ModalShell onClose={onClose}>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-white flex items-center gap-2"><UserPlus className="w-4 h-4 text-indigo-400" /> Add team member</h3>
+        <button onClick={onClose} className="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center"><X className="w-4 h-4 text-slate-400" /></button>
+      </div>
+      <p className="text-xs text-slate-500">New members join <span className="text-slate-300 font-semibold">your team</span> as a Team Member.</p>
+      {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400">{error}</div>}
+      <form onSubmit={e => e.preventDefault()} autoComplete="off" className="space-y-3">
+        <div>
+          <label className={labelCls}>Full name</label>
+          <input className={inputCls} value={form.name} autoComplete="off"
+            onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Enter full name" />
+        </div>
+        <div>
+          <label className={labelCls}>Email</label>
+          <input type="email" className={inputCls} value={form.email} autoComplete="off"
+            onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="name@domain.com" />
+        </div>
+        <div>
+          <label className={labelCls}>Temporary password</label>
+          <input type="password" className={inputCls} value={form.password} autoComplete="new-password"
+            onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="••••••••" />
+        </div>
+      </form>
+      <div className="flex justify-end gap-2 pt-1">
+        <button onClick={onClose} className="text-xs text-slate-400 px-3 py-2 hover:text-slate-200">Cancel</button>
+        <button onClick={submit} disabled={submitting}
+          className="flex items-center gap-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-xl text-white disabled:opacity-50 transition-colors">
+          {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          {submitting ? 'Adding…' : 'Add member'}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+// ── Remove Member ──
+function RemoveMemberDialog({ members, leaderId, onClose, onDone }: { members: any[]; leaderId: string; onClose: () => void; onDone: () => void }) {
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const removable = members.filter(m => String(m._id) !== String(leaderId));
+
+  const remove = async (m: any) => {
+    if (!confirm(`Remove ${m.name} from the team? This can't be undone.`)) return;
+    setBusyId(m._id); setError('');
+    try {
+      const res = await fetch(`/api/admin/members?id=${m._id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!data.success) { setError(data.message || 'Could not remove member.'); return; }
+      onDone(); // refresh dashboard data (list updates via props)
+    } catch { setError('Could not reach the server. Nothing was removed.'); }
+    finally { setBusyId(null); }
+  };
+
+  return (
+    <ModalShell onClose={onClose}>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-white flex items-center gap-2"><UserMinus className="w-4 h-4 text-rose-400" /> Remove team member</h3>
+        <button onClick={onClose} className="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center"><X className="w-4 h-4 text-slate-400" /></button>
+      </div>
+      {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400">{error}</div>}
+      {removable.length === 0 ? (
+        <div className="py-10 text-center text-xs text-slate-500">No members available to remove.</div>
+      ) : (
+        <div className="space-y-2 max-h-80 overflow-y-auto">
+          {removable.map(m => (
+            <div key={m._id} className="flex items-center gap-3 p-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center text-xs font-bold text-white shrink-0 overflow-hidden">
+                {m.profileImage ? <img src={m.profileImage} alt={m.name} className="w-full h-full object-cover" /> : initialsOf(m.name)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-white truncate">{m.name}</p>
+                <p className="text-[11px] text-slate-500 truncate">{m.designation || m.role || 'Member'} · {m.email}</p>
+              </div>
+              <button onClick={() => remove(m)} disabled={busyId === m._id}
+                className="flex items-center gap-1 text-xs font-bold text-rose-400 hover:text-rose-300 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1.5 rounded-lg disabled:opacity-50 transition-colors">
+                {busyId === m._id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />} Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="flex justify-end pt-1">
+        <button onClick={onClose} className="text-xs text-slate-400 px-3 py-2 hover:text-slate-200">Done</button>
+      </div>
+    </ModalShell>
+  );
+}
+
+// ── Edit Team Information ──
+function EditTeamDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const [team, setTeam] = useState<any>(null);
+  const [form, setForm] = useState({ description: '', coverImage: '' });
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/teams', { cache: 'no-store' });
+        const data = await res.json();
+        const t = data.success && data.teams?.[0] ? data.teams[0] : null;
+        if (!t) { setError('Your team could not be found.'); return; }
+        setTeam(t);
+        setForm({ description: t.description || '', coverImage: t.coverImage || '' });
+      } catch { setError('Could not load your team.'); }
+      finally { setLoading(false); }
+    })();
+  }, []);
+
+  const submit = async () => {
+    if (!team) return;
+    setSubmitting(true); setError('');
+    try {
+      const res = await fetch('/api/admin/teams', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: team._id, description: form.description, coverImage: form.coverImage }),
+      });
+      const data = await res.json();
+      if (!data.success) { setError(data.message || 'Could not save changes.'); return; }
+      onDone(); onClose();
+    } catch { setError('Could not reach the server. Changes were not saved.'); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <ModalShell onClose={onClose}>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-bold text-white flex items-center gap-2"><Settings2 className="w-4 h-4 text-indigo-400" /> Edit team information</h3>
+        <button onClick={onClose} className="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center"><X className="w-4 h-4 text-slate-400" /></button>
+      </div>
+      {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-3 py-2 text-xs text-red-400">{error}</div>}
+      {loading ? (
+        <div className="py-10 flex items-center justify-center gap-2 text-xs text-slate-500"><Loader2 className="w-4 h-4 animate-spin" /> Loading team…</div>
+      ) : team ? (
+        <>
+          <div>
+            <p className="text-xs text-slate-500 mb-1">Team</p>
+            <p className="text-sm font-bold text-white">{team.name}</p>
+          </div>
+          <div>
+            <label className={labelCls + ' flex items-center gap-1'}><ImageIcon className="w-3 h-3" /> Cover image</label>
+            <div className="h-24 rounded-xl overflow-hidden border border-white/10 bg-gradient-to-br from-indigo-500/20 to-violet-500/10 flex items-center justify-center mb-2">
+              {form.coverImage ? <img src={form.coverImage} alt={team.name} className="w-full h-full object-cover" /> : <ImageIcon className="w-6 h-6 text-white/30" />}
+            </div>
+            <div className="flex gap-2">
+              <input className={inputCls} placeholder="Paste cover image URL to upload / replace" value={form.coverImage}
+                onChange={e => setForm(f => ({ ...f, coverImage: e.target.value }))} />
+              {form.coverImage && (
+                <button onClick={() => setForm(f => ({ ...f, coverImage: '' }))} title="Delete cover"
+                  className="px-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 hover:bg-rose-500/20">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+          <div>
+            <label className={labelCls}>Description</label>
+            <textarea rows={3} className={inputCls + ' resize-none'} placeholder="What does this team work on?"
+              value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={onClose} className="text-xs text-slate-400 px-3 py-2 hover:text-slate-200">Cancel</button>
+            <button onClick={submit} disabled={submitting}
+              className="flex items-center gap-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 px-4 py-2 rounded-xl text-white disabled:opacity-50 transition-colors">
+              {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              {submitting ? 'Saving…' : 'Save changes'}
+            </button>
+          </div>
+        </>
+      ) : null}
+    </ModalShell>
+  );
+}
+
 /* ─────────────────────────── PAGE ─────────────────────────── */
 
 export default function TeamDashboardPage() {
@@ -151,11 +373,12 @@ export default function TeamDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [activeAction, setActiveAction] = useState<TeamAction | null>(null);
 
   const loadTeam = async () => {
     const res = await fetch('/api/dashboard/team', {
-  cache: 'no-store',
-});
+    cache: 'no-store',
+  });
     const json = await res.json();
     if (json.success) { setData(json); setError(false); }
     else setError(true);
@@ -397,41 +620,62 @@ export default function TeamDashboardPage() {
         </GlassCard>
       </motion.div>
 
-      {/* ── 8. RESTRICTED ACTIONS ── */}
+      {/* ── 8. TEAM MANAGEMENT (permission-gated, live) ── */}
       <motion.div variants={fadeUp} initial="hidden" animate="show">
         <GlassCard className="p-7">
           <SectionTitle
-            title="Restricted Operations"
-            subtitle="These endpoints require explicit Admin approval validation tokens."
-            action={<Badge text="Read-only" className="bg-red-500/10 text-red-400 border-red-500/20" />}
+            title="Team Management"
+            subtitle="Actions unlock automatically when an Admin grants you the matching permission."
+            action={<Badge text={`${teamActions.filter(a => perms.includes(a.permission)).length}/${teamActions.length} unlocked`} className="bg-indigo-500/10 text-indigo-400 border-indigo-500/20" />}
           />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {restrictedActions.map((r, i) => {
-              const allowed = perms.includes(r.permission);
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {teamActions.map((a, i) => {
+              const allowed = perms.includes(a.permission);
               return (
-              <motion.div key={i}
-                initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.04 * i }}
-                aria-disabled={!allowed}
-                className={`relative flex flex-col items-center text-center gap-2.5 p-4 rounded-2xl bg-red-500/[0.03] border border-red-500/10 group select-none ${allowed ? 'cursor-default' : 'cursor-not-allowed'}`}
-                title={allowed ? r.label : r.note}
-              >
-                <div className="absolute inset-0 rounded-2xl bg-black/0 group-hover:bg-black/20 transition-all duration-200" />
-                <div className="w-10 h-10 rounded-xl bg-white/5 border border-red-500/15 flex items-center justify-center relative">
-                  <r.icon className="w-5 h-5 text-slate-600" />
-                  {!allowed && (
-                    <div className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-red-500/80 border border-[#0d1117] flex items-center justify-center">
-                      <Lock className="w-2 h-2 text-white" />
-                    </div>
-                  )}
-                </div>
-                <p className="text-xs font-semibold text-slate-500 leading-tight">{r.label}</p>
-                <span className="text-[10px] text-red-400/70 font-medium leading-tight">{allowed ? 'Available' : r.note}</span>
-              </motion.div>
+                <motion.button key={a.key}
+                  initial={{ opacity: 0, scale: 0.94 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.04 * i }}
+                  whileHover={allowed ? { y: -3 } : undefined} whileTap={allowed ? { scale: 0.98 } : undefined}
+                  onClick={() => allowed && setActiveAction(a.key)}
+                  disabled={!allowed}
+                  aria-disabled={!allowed}
+                  title={allowed ? a.label : a.note}
+                  className={`relative flex flex-col items-center text-center gap-2.5 p-5 rounded-2xl border transition-all group ${
+                    allowed
+                      ? 'bg-indigo-500/[0.06] border-indigo-500/20 hover:border-indigo-500/40 cursor-pointer'
+                      : 'bg-white/[0.02] border-white/[0.06] cursor-not-allowed opacity-70'
+                  }`}
+                >
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center relative ${allowed ? 'bg-indigo-500/15 border border-indigo-500/25' : 'bg-white/5 border border-white/10'}`}>
+                    <a.icon className={`w-5 h-5 ${allowed ? 'text-indigo-300' : 'text-slate-600'}`} />
+                    {!allowed && (
+                      <div className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-slate-700 border border-[#0d1117] flex items-center justify-center">
+                        <Lock className="w-2 h-2 text-white" />
+                      </div>
+                    )}
+                  </div>
+                  <p className={`text-xs font-bold leading-tight ${allowed ? 'text-white' : 'text-slate-500'}`}>{a.label}</p>
+                  <span className={`text-[10px] font-medium leading-tight ${allowed ? 'text-indigo-400' : 'text-slate-600'}`}>
+                    {allowed ? 'Click to open' : 'Locked'}
+                  </span>
+                </motion.button>
               );
             })}
           </div>
         </GlassCard>
       </motion.div>
+
+      {/* ── DIALOGS — every action stays on this page ── */}
+      <AnimatePresence>
+        {activeAction === 'add' && perms.includes('members:create') && (
+          <AddMemberDialog onClose={() => setActiveAction(null)} onDone={loadTeam} />
+        )}
+        {activeAction === 'remove' && perms.includes('members:delete') && (
+          <RemoveMemberDialog members={members} leaderId={leader._id} onClose={() => setActiveAction(null)} onDone={loadTeam} />
+        )}
+        {activeAction === 'edit' && perms.includes('team:edit') && (
+          <EditTeamDialog onClose={() => setActiveAction(null)} onDone={loadTeam} />
+        )}
+      </AnimatePresence>
 
     </div>
   );

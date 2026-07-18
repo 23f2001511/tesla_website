@@ -307,7 +307,7 @@ export default function AdminOverview() {
     return () => {
       clearInterval(interval);
       window.removeEventListener('focus', onFocus);
-      document.addEventListener('visibilitychange', onVisibility);
+      document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [fetchData]);
 

@@ -152,11 +152,24 @@ export async function PATCH(req: NextRequest) {
   try {
     const actor = await getAuthPayload();
     if (!actor) return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    if (!isManager(actor.role)) {
+
+    await connectDB();
+
+    // Resolve the caller from the DB (fresh role + permissions, not the JWT).
+    const actorDoc: any = await User.findById(actor.userId).select('role team permissions').lean();
+    const actorRole = actorDoc?.role;
+    const manager = isManager(actorRole);
+    // A Team Leader may edit ONLY their own team's description & cover — gated by
+    // the same `team:edit` permission the Members panel grants. No new perm logic.
+    const leaderCanEdit =
+      actorRole === 'TeamLeader' &&
+      Array.isArray(actorDoc?.permissions) &&
+      actorDoc.permissions.includes('team:edit');
+
+    if (!manager && !leaderCanEdit) {
       return NextResponse.json({ success: false, message: 'You do not have permission to manage teams.' }, { status: 403 });
     }
 
-    await connectDB();
     const body = await req.json();
     const { id, name, description, coverImage, lead, isActive } = body;
 
@@ -164,6 +177,18 @@ export async function PATCH(req: NextRequest) {
 
     const team = await Team.findById(id);
     if (!team) return NextResponse.json({ success: false, message: 'Team not found' }, { status: 404 });
+
+    // ── Team-Leader path: own team only, description & cover image only ──
+    if (!manager) {
+      if (!actorDoc?.team || team.name !== actorDoc.team) {
+        return NextResponse.json({ success: false, message: 'You can only edit your own team.' }, { status: 403 });
+      }
+      if (description !== undefined) team.description = description;
+      if (coverImage !== undefined) team.coverImage = coverImage; // '' clears the cover
+      await team.save();
+      await team.populate('lead', 'name email profileImage');
+      return NextResponse.json({ success: true, message: 'Team updated', team: await serializeTeam(team.toObject()) }, { status: 200 });
+    }
 
     const oldName = team.name;
 
@@ -192,6 +217,15 @@ export async function PATCH(req: NextRequest) {
       } else {
         const newLead = await User.findById(lead);
         if (!newLead) return NextResponse.json({ success: false, message: 'Selected leader not found' }, { status: 404 });
+
+        // Assigning a lead rewrites their role to TeamLeader — an OfficeBearer
+        // may not demote a privileged account (Admin/President/PI) that way.
+        if (actorRole === 'OfficeBearer' && ['Admin', 'President', 'PI'].includes(newLead.role)) {
+          return NextResponse.json(
+            { success: false, message: `Office Bearers cannot make a ${newLead.role} a team leader.` },
+            { status: 403 }
+          );
+        }
 
         // Demote previous leader (if different).
         if (team.lead && String(team.lead) !== String(lead)) {

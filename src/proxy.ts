@@ -7,7 +7,9 @@ import { jwtVerify } from 'jose';
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_development_only';
 const secretKey = new TextEncoder().encode(JWT_SECRET);
 
-const ADMIN_PANEL_ROLES = ['Admin', 'President'];
+// OfficeBearer shares the admin panel UI — its reduced powers are enforced by
+// each API route (role checks), not by hiding the pages.
+const ADMIN_PANEL_ROLES = ['Admin', 'President', 'OfficeBearer'];
 
 async function getRoleFromToken(token: string): Promise<string | null> {
   try {
@@ -55,6 +57,12 @@ export async function proxy(request: NextRequest) {
       const response = NextResponse.redirect(new URL('/login', request.url));
       response.cookies.delete('token');
       return response;
+    }
+
+    // The PI oversight dashboard is exclusive to the PI role (its API is also
+    // PI-gated — this just keeps other roles off the route entirely).
+    if (request.nextUrl.pathname.startsWith('/dashboard/pi') && role !== 'PI') {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
     }
   }
 

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { TypewriterText } from '@/components/ui/TypewriterText';
 import { Users, Calendar, GraduationCap, FileText, Trophy } from 'lucide-react';
+import { HeroAnimatedLogo } from '@/components/logo/HeroAnimatedLogo';
 
 export function Hero() {
   const stats = [
@@ -78,24 +79,8 @@ export function Hero() {
             transition={{ duration: 1, delay: 0.2 }}
             className="hidden lg:flex justify-center items-center relative"
           >
-            {/* Holographic Platform */}
-            <div className="absolute bottom-10 w-[300px] h-[60px] bg-primary/20 rounded-[100%] blur-xl" />
-            <div className="absolute bottom-10 w-[200px] h-[30px] border border-primary/50 rounded-[100%] shadow-[0_0_30px_rgba(59,130,246,0.8)]" />
-            <div className="absolute bottom-12 w-[150px] h-[20px] border-2 border-cyan-400/80 rounded-[100%] shadow-[0_0_20px_rgba(34,211,238,1)]" />
-
-            {/* 3D T Logo */}
-            <motion.div 
-              animate={{ y: [-10, 10, -10] }}
-              transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
-              className="relative z-10 text-[250px] font-bold text-transparent leading-none select-none drop-shadow-[0_0_40px_rgba(59,130,246,0.6)]"
-              style={{
-                WebkitTextStroke: '2px rgba(59, 130, 246, 0.8)',
-                backgroundImage: 'linear-gradient(to bottom, rgba(255,255,255,0.8), rgba(59,130,246,0.2))',
-                WebkitBackgroundClip: 'text'
-              }}
-            >
-              T
-            </motion.div>
+            {/* Official club logo — futuristic SVG recreation with platform */}
+            <HeroAnimatedLogo size={340} className="relative z-10" />
           </motion.div>
         </div>
 

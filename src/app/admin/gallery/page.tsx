@@ -332,7 +332,12 @@ export default function AdminGalleryPage() {
     e.stopPropagation();
     if (!confirm(`Permanently delete "${item.title}"?`)) return;
     try {
-      await fetch(`/api/admin/gallery?id=${item.id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/admin/gallery?id=${item.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        alert(errData?.message || 'You are not allowed to delete this asset.');
+        return;
+      }
       await fetchGallery(true);
     } catch { alert('Failed to delete asset. Please try again.'); }
   };

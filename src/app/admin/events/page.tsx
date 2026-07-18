@@ -6,7 +6,7 @@ import {
   Calendar, Plus, RefreshCw, Search, MapPin, Clock,
   ChevronDown, ChevronUp, Eye, Trash2, CheckCircle2,
   AlertCircle, BarChart3, Star, X, Check, Ban,
-  Bell, User, FileText, Loader2, CalendarPlus, Inbox, Tag
+  Bell, User, FileText, Loader2, CalendarPlus, Inbox, Tag, ImagePlus
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -122,17 +122,27 @@ function AddEventModal({ onClose, onCreated, existingCategories }: { onClose: ()
   const [form, setForm] = useState({
     title: '', description: '', date: '', venue: '',
     category: existingCategories[0] || 'Technical Workshop', speaker: '', seatLimit: '',
-    isFeatured: false, newCategoryInput: ''
+    isFeatured: false, newCategoryInput: '', coverImage: ''
   });
   const [useCustomCategory, setUseCustomCategory] = useState(existingCategories.length === 0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const coverRef = useRef<HTMLInputElement>(null);
 
   const set = (k: string, v: any) => setForm(f => ({ ...f, [k]: v }));
 
+  const handlePickCover = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => set('coverImage', reader.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   const submit = async () => {
     const finalCategory = useCustomCategory ? form.newCategoryInput.trim() : form.category;
-    
+
     if (!form.title || !form.description || !form.date || !form.venue || !finalCategory) {
       setError('Please fill all required blocks.'); return;
     }
@@ -141,13 +151,31 @@ function AddEventModal({ onClose, onCreated, existingCategories }: { onClose: ()
       const res = await fetch('/api/admin/events', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          ...form, 
+        body: JSON.stringify({
+          ...form,
+          coverImage: undefined, // persisted separately via PATCH below
           category: finalCategory,
-          seatLimit: Number(form.seatLimit) || 0 
+          seatLimit: Number(form.seatLimit) || 0
         }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Creation engine anomaly occurred');
+      // The create route ignores image fields, so persist the cover through the
+      // existing single-event PATCH route into the Event document's poster field.
+      if (form.coverImage) {
+        const created = await res.json();
+        const eventId = created?.event?._id;
+        if (eventId) {
+          try {
+            await fetch(`/api/admin/events/${eventId}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ poster: form.coverImage }),
+            });
+          } catch (err) {
+            console.error('Cover image save failed:', err);
+          }
+        }
+      }
       onCreated();
       onClose();
     } catch (e: any) {
@@ -273,6 +301,39 @@ function AddEventModal({ onClose, onCreated, existingCategories }: { onClose: ()
                   value={form.seatLimit} onChange={e => set('seatLimit', e.target.value)}
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-400 mb-1.5 font-medium">Cover Image</label>
+              <input ref={coverRef} type="file" accept="image/*" onChange={handlePickCover} className="hidden" />
+              {form.coverImage ? (
+                <div className="relative rounded-xl overflow-hidden border border-white/[0.08]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={form.coverImage} alt="Event cover preview" className="w-full h-36 object-cover" />
+                  <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                    <button
+                      type="button" onClick={() => coverRef.current?.click()}
+                      className="px-2.5 py-1 rounded-lg bg-black/60 border border-white/10 text-[11px] text-gray-200 hover:bg-black/80 transition-colors"
+                    >
+                      Change
+                    </button>
+                    <button
+                      type="button" onClick={() => set('coverImage', '')}
+                      className="w-6 h-6 rounded-lg bg-black/60 border border-white/10 flex items-center justify-center hover:bg-black/80 transition-colors"
+                    >
+                      <X className="w-3 h-3 text-gray-300" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  type="button" onClick={() => coverRef.current?.click()}
+                  className="w-full flex flex-col items-center justify-center gap-1.5 py-6 rounded-xl border border-dashed border-white/[0.12] bg-white/[0.02] hover:bg-white/[0.04] hover:border-indigo-500/40 transition-all"
+                >
+                  <ImagePlus className="w-4 h-4 text-gray-500" />
+                  <span className="text-xs text-gray-500">Click to upload a cover image</span>
+                </button>
+              )}
             </div>
 
             <div className="pt-2">

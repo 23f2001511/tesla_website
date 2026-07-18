@@ -11,10 +11,23 @@ import {
   BookOpen,
   Trophy,
   Users,
+  GraduationCap,
   Image as ImageIcon,
   Settings,
+  BarChart3,
   LogOut,
+  Menu,
+  X,
 } from 'lucide-react';
+import { SidebarLogo } from '@/components/logo/SidebarLogo';
+import {
+  DASHBOARD_THEME_CSS,
+  THEME_CHANGE_EVENT,
+  THEME_KEY,
+  getStoredThemeChoice,
+  resolveTheme,
+  type ResolvedTheme,
+} from './theme';
 
 export default function DashboardLayout({
   children,
@@ -25,6 +38,34 @@ export default function DashboardLayout({
   const router = useRouter();
 
   const [user, setUser] = useState<any>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Resolve synchronously on the client so hydration paints the right theme
+  // instead of flashing dark first.
+  const [theme, setTheme] = useState<ResolvedTheme>(() =>
+    typeof window === 'undefined' ? 'dark' : resolveTheme(getStoredThemeChoice())
+  );
+
+  useEffect(() => {
+    const apply = () => setTheme(resolveTheme(getStoredThemeChoice()));
+
+    apply();
+
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === THEME_KEY) apply();
+    };
+
+    mq.addEventListener('change', apply);
+    window.addEventListener(THEME_CHANGE_EVENT, apply);
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      mq.removeEventListener('change', apply);
+      window.removeEventListener(THEME_CHANGE_EVENT, apply);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -55,58 +96,67 @@ export default function DashboardLayout({
 
   if (userRole === 'TeamLeader') {
     navItems = [
-      { name: 'Dashboard', href: '/dashboard/members', icon: LayoutDashboard },
+      { name: 'Overview', href: '/dashboard/members', icon: LayoutDashboard },
       { name: 'Team', href: '/dashboard/members/team', icon: Users },
       { name: 'My Events', href: '/dashboard/members/events', icon: Calendar },
       { name: 'My Blogs', href: '/dashboard/members/blogs', icon: FileText },
       { name: 'Resources', href: '/dashboard/resources', icon: BookOpen },
-      { name: 'Achievements', href: '/dashboard/achievements', icon: Trophy },
-      { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon }
+      { name: 'My Journey', href: '/dashboard/my-journey', icon: Trophy },
+      { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon },
+      { name: 'Club Achievments', href: '/dashboard/members/achievments', icon: Trophy },
     ];
 
   } else if (userRole === 'TeamMember') {
     navItems = [
-      { name: 'Dashboard', href: '/dashboard/members', icon: LayoutDashboard },
+      { name: 'Overview', href: '/dashboard/members', icon: LayoutDashboard },
       { name: 'My Events', href: '/dashboard/members/events', icon: Calendar },
       { name: 'My Blogs', href: '/dashboard/members/blogs', icon: FileText },
       { name: 'Resources', href: '/dashboard/resources', icon: BookOpen },
-      { name: 'Achievements', href: '/dashboard/achievements', icon: Trophy },
-      { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon }
+      { name: 'My Journey', href: '/dashboard/my-journey', icon: Trophy },
+      { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon },
+      { name: 'Club Achievments', href: '/dashboard/members/achievments', icon: Trophy },
     ];
 
   } else if (userRole === 'OfficeBearer') {
     navItems = [
-      { name: 'Dashboard', href: '/dashboard/members', icon: LayoutDashboard },
-      { name: 'Blogs and Events', href: '/dashboard/members/events', icon: FileText },
-      { name: 'Resources', href: '/dashboard/resources', icon: BookOpen },
-      { name: 'Achievements', href: '/dashboard/achievements', icon: Trophy },
-      { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon }
+      { name: 'Overview', href: '/dashboard/leadership', icon: LayoutDashboard },
+      { name: 'Members', href: '/dashboard/leadership/members', icon: Users },
+      { name: 'Events', href: '/dashboard/leadership/events', icon: Calendar },
+      { name: 'Blogs', href: '/dashboard/leadership/blogs', icon: FileText },
+      { name: 'My Journey', href: '/dashboard/my-journey', icon: Trophy },
+      { name: 'Resources', href: '/dashboard/leadership/resources', icon: BookOpen },
+      { name: 'Alumni', href: '/dashboard/leadership/alumni', icon: GraduationCap },
+      { name: 'Gallery', href: '/dashboard/leadership/gallery', icon: ImageIcon },
+      { name: 'Club Achievments', href: '/dashboard/leadership/club-achievements', icon: Trophy },
+     
     ];
 
   } else if (userRole === 'PI') {
+    // PI is a read-only oversight role — a single analytics view, no manage pages.
     navItems = [
-      { name: 'Dashboard', href: '/dashboard/members', icon: LayoutDashboard },
-      { name: 'manage', href: '/dashboard/manage', icon: FileText }
+      { name: 'PI Dashboard', href: '/dashboard/pi', icon: BarChart3 },
     ];
 
   } else if (userRole === 'Alumni') {
     navItems = [
-      { name: 'Dashboard', href: '/dashboard/members', icon: LayoutDashboard },
-      { name: 'My Events', href: '/dashboard/members/events', icon: Calendar },
-      { name: 'My Blogs', href: '/dashboard/members/blogs', icon: FileText },
-      { name: 'Resources', href: '/dashboard/resources', icon: BookOpen },
-      { name: 'Achievements', href: '/dashboard/achievements', icon: Trophy },
-      { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon }
+      { name: 'Overview', href: '/dashboard/alumni', icon: LayoutDashboard },
+      { name: 'Club Insights', href: '/dashboard/alumni/insights', icon: BarChart3 },
+      { name: 'Alumni Network', href: '/dashboard/alumni/network', icon: GraduationCap },
+      { name: 'My Profile', href: '/dashboard/profile', icon: Users }
     ];
 
   }else{
      navItems = [
-      { name: 'Dashboard', href: '/dashboard/members', icon: LayoutDashboard },
-      { name: 'My Events', href: '/dashboard/members/events', icon: Calendar },
-      { name: 'My Blogs', href: '/dashboard/members/blogs', icon: FileText },
-      { name: 'Resources', href: '/dashboard/resources', icon: BookOpen },
-      { name: 'Achievements', href: '/dashboard/achievements', icon: Trophy },
-      { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon }
+      { name: 'Overview', href: '/dashboard/leadership', icon: LayoutDashboard },
+      { name: 'Members', href: '/dashboard/leadership/members', icon: Users },
+      { name: 'Events', href: '/dashboard/leadership/events', icon: Calendar },
+      { name: 'Blogs', href: '/dashboard/leadership/blogs', icon: FileText },
+      { name: 'My Journey', href: '/dashboard/my-journey', icon: Trophy },
+      { name: 'Resources', href: '/dashboard/leadership/resources', icon: BookOpen },
+      { name: 'Alumni', href: '/dashboard/leadership/alumni', icon: GraduationCap },
+      { name: 'Gallery', href: '/dashboard/leadership/gallery', icon: ImageIcon },
+      { name: 'Club Achievments', href: '/dashboard/leadership/club-achievements', icon: Trophy },
+      
     ];
   }
 
@@ -116,84 +166,100 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="h-screen w-full bg-[#0d1117] flex overflow-hidden selection:bg-primary/30 selection:text-white">
-      
-      {/* ── DESIGNER PREMIUM SIDEBAR ── */}
-      <aside className="w-56 border-r border-white/[0.06] bg-gradient-to-b from-[#0f141c] via-[#0d1117] to-[#0b0e14] p-4 flex flex-col h-full flex-shrink-0 sticky top-0 select-none shadow-2xl shadow-black/40">
-        
-        {/* Brand/Logo Section with Glowing Border Sub-pipe */}
-        <div className="mb-6 pl-2.5 pt-2 relative group">
-          <div className="space-y-0.5">
-            <h1 className="text-xl font-black text-white tracking-wider flex items-center gap-1.5 font-sans">
-              TESLA <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-            </h1>
-            <p className="text-[10px] uppercase font-bold tracking-widest text-primary/80">
-              Technical Club
-            </p>
+    <div
+      className="min-h-screen flex bg-background text-foreground"
+      data-theme={theme}
+      suppressHydrationWarning
+    >
+      <style>{DASHBOARD_THEME_CSS}</style>
+      {/* Mobile sidebar toggle */}
+      <div className="lg:hidden fixed top-4 left-4 z-40">
+        <button
+          onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="p-2 bg-primary text-white rounded-lg shadow-lg"
+        >
+          {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+      </div>
+
+      {/* Sidebar */}
+      <aside
+        className={`
+        fixed lg:sticky top-0 left-0 z-30 h-screen w-64 glass border-r border-white/5 transition-transform duration-300
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}
+      >
+        <div className="flex flex-col h-full overflow-y-auto py-6 px-4 hide-scrollbar">
+          <div className="mb-10 flex items-center">
+            <SidebarLogo size={56} />
           </div>
-          {/* Suttle accent line under logo */}
-          <div className="w-12 h-[2px] bg-gradient-to-r from-primary to-transparent mt-3.5 opacity-60 group-hover:w-20 transition-all duration-300" />
-        </div>
 
-        {/* Navigation Items Link Pipeline */}
-        <nav className="flex-1 space-y-1 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/5">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
+          <nav className="flex-1 space-y-1">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                    isActive
+                      ? 'bg-primary/20 text-primary border border-primary/30'
+                      : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                  }`}
+                >
+                  <item.icon className={`w-5 h-5 ${isActive ? 'text-primary' : 'text-gray-400'}`} />
+                  {item.name}
+                </Link>
+              );
+            })}
+          </nav>
 
-            return (
+          <div className="mt-8 pt-6 border-t border-white/10">
+            <p className="text-xs uppercase tracking-widest text-gray-500 px-3 mb-3">System</p>
+
+            <div className="space-y-1">
               <Link
-                key={item.name}
-                href={item.href}
-                className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all duration-200 relative group ${
-                  isActive
-                    ? 'bg-gradient-to-r from-primary/20 to-primary/5 text-white border border-primary/20 shadow-lg shadow-primary/5'
-                    : 'text-gray-400 hover:bg-white/[0.03] hover:text-white border border-transparent'
-                }`}
+                href="/dashboard/settings"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-white/5 hover:text-white transition-colors"
               >
-                {/* Active Indicator Strip Indicator */}
-                {isActive && (
-                  <span className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-md bg-primary" />
-                )}
-                
-                <item.icon className={`w-4 h-4 shrink-0 transition-transform duration-200 group-hover:scale-105 ${
-                  isActive ? 'text-primary' : 'text-gray-400 group-hover:text-white'
-                }`} />
-                
-                <span>{item.name}</span>
+                <Settings className="w-5 h-5" />
+                Settings
               </Link>
-            );
-          })}
-        </nav>
 
-        {/* Bottom Actions Section with Smooth Gradient Borders */}
-        <div className="border-t border-white/[0.06] pt-3.5 space-y-1.5 mt-auto">
-          <Link
-            href="/dashboard/settings"
-            className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-semibold tracking-wide border border-transparent transition-all duration-200 group ${
-              pathname === '/dashboard/settings'
-                ? 'bg-gradient-to-r from-primary/20 to-primary/5 text-white border-primary/20'
-                : 'text-gray-400 hover:bg-white/[0.03] hover:text-white'
-            }`}
-          >
-            <Settings className="w-4 h-4 shrink-0 text-gray-400 group-hover:text-white transition-colors" />
-            <span>Settings</span>
-          </Link>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-red-400 hover:bg-red-400/10 transition-colors"
+              >
+                <LogOut className="w-5 h-5" />
+                Logout
+              </button>
+            </div>
+          </div>
 
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold tracking-wide text-red-400/90 hover:bg-red-500/10 hover:text-red-400 border border-transparent hover:border-red-500/10 transition-all duration-200 group"
-          >
-            <LogOut className="w-4 h-4 shrink-0 text-red-400/80 group-hover:translate-x-0.5 transition-transform" />
-            <span>Logout</span>
-          </button>
+          <div className="mt-6 pt-6 border-t border-white/10 flex items-center gap-3 px-1">
+            <div className="w-10 h-10 rounded-full overflow-hidden bg-primary shrink-0 flex items-center justify-center">
+              {user?.profileImage ? (
+                <img
+                  src={user.profileImage}
+                  alt={user?.name || "Profile"}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-white font-semibold text-sm">
+                  {(user?.name || "?").charAt(0).toUpperCase()}
+                </span>
+              )}
+            </div>
+            <div>
+              <h3 className="text-sm text-white font-semibold">{user?.name}</h3>
+              <p className="text-xs text-gray-400">{userRole}</p>
+            </div>
+          </div>
         </div>
       </aside>
 
-      {/* ── MAIN AREA ROUTER CONTAINER ── */}
-      <main className="flex-1 h-full p-8 overflow-y-auto">
-        {children}
-      </main>
-
+      {/* Main Content */}
+      <main className="flex-1 p-6 lg:p-8 overflow-x-hidden">{children}</main>
     </div>
   );
 }

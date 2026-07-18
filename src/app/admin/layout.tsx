@@ -19,6 +19,7 @@ import {
   Menu,
   X,
 } from 'lucide-react';
+import { SidebarLogo } from '@/components/logo/SidebarLogo';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -69,15 +70,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       `}
       >
         <div className="flex flex-col h-full overflow-y-auto py-6 px-4 hide-scrollbar">
-          <div className="mb-10 flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center">
-              <span className="text-2xl font-bold text-white">T</span>
-            </div>
-
-            <div>
-              <h2 className="text-2xl font-bold text-white">TESLA</h2>
-              <p className="text-sm tracking-[0.3em] text-gray-400 uppercase">Technical Club</p>
-            </div>
+          <div className="mb-10 flex items-center">
+            <SidebarLogo size={56} />
           </div>
 
           <nav className="flex-1 space-y-1">
@@ -105,7 +99,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             <div className="space-y-1">
               <Link
-                href="../dashboard/settings"
+                href="/dashboard/settings"
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-400 hover:bg-white/5 hover:text-white transition-colors"
               >
                 <Settings className="w-5 h-5" />

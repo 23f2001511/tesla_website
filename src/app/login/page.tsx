@@ -7,16 +7,15 @@ import { motion } from 'framer-motion';
 import { Mail, Lock, LogIn, AlertCircle } from 'lucide-react';
 import { Navbar } from "@/components/layout/Navbar";
 
-// Single source of truth for "where does this role land after login" —
-// keep this in sync with src/lib/permissions.ts if those routes change.
+
 const ROLE_LANDING: Record<string, string> = {
   Admin:        '/admin',
-  PI:           '/dashboard',
-  President:    '/admin',           // President has admin panel access too
-  OfficeBearer: '/dashboard/executor',
+  PI:           '/dashboard/pi',
+  President:    '/dashboard/leadership',           // President has admin panel access too
+  OfficeBearer: '/dashboard/leadership',
   TeamLeader:   '/dashboard/members',
   TeamMember:   '/dashboard/members',
-  Alumni:       '/dashboard',
+  Alumni:       '/dashboard/alumni',
 };
 
 export default function LoginPage() {
@@ -82,7 +81,7 @@ export default function LoginPage() {
             </div>
           )}
 
-          <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+          <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-2">Email Address</label>
               <div className="relative">
@@ -115,7 +114,7 @@ export default function LoginPage() {
             </div>
 
             <button
-              type="button" onClick={handleLogin} disabled={loading}
+              type="submit" disabled={loading}
               className="w-full py-3 bg-primary hover:bg-blue-600 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(59,130,246,0.3)] disabled:opacity-60"
             >
               {loading ? 'Signing In...' : 'Sign In'} <LogIn className="w-4 h-4" />

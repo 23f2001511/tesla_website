@@ -11,6 +11,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 import ProfileDrawer from '@/components/profile/ProfileForm';
+import { isAchievementManager } from '@/lib/permissions';
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
@@ -213,16 +214,22 @@ export default function MembersDashboardWorkspace() {
   const router = useRouter();
   const [dbData, setDbData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'activity' | 'blogs' | 'resources'>('activity');
+  const [loadError, setLoadError] = useState(false);
   const [openDrawer, setOpenDrawer] = useState(false);
 
   const fetchDashboardDataset = async () => {
     try {
       const res = await fetch('/api/dashboard/members');
       const data = await res.json();
-      if (data.success) setDbData(data);
+      if (data.success) {
+        setDbData(data);
+        setLoadError(false);
+      } else {
+        setLoadError(true);
+      }
     } catch (err) {
       console.error(err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -234,6 +241,19 @@ export default function MembersDashboardWorkspace() {
     <div className="flex justify-center items-center h-screen gap-3 text-xs font-mono text-slate-500 bg-[#080c14]">
       <RefreshCw className="w-4 h-4 animate-spin text-indigo-400" />
       Loading your workspace...
+    </div>
+  );
+
+  if (loadError || !dbData) return (
+    <div className="flex flex-col justify-center items-center h-screen gap-3 text-xs font-mono text-slate-500 bg-[#080c14]">
+      <p>Couldn&apos;t load your workspace.</p>
+      <button
+        onClick={() => { setLoading(true); fetchDashboardDataset(); }}
+        className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-black text-indigo-400
+          border border-indigo-500/20 bg-indigo-500/5 hover:bg-indigo-500/10 transition-all"
+      >
+        <RefreshCw className="w-3 h-3" /> Retry
+      </button>
     </div>
   );
 
@@ -429,7 +449,7 @@ export default function MembersDashboardWorkspace() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <QuickAction
                   icon={PenLine} label="Write a Blog" sub="Share your knowledge"
-                  accent="#3b82f6" onClick={() => router.push('/dashboard/blogs')}
+                  accent="#3b82f6" onClick={() => router.push('/dashboard/members/blogs')}
                 />
                 <QuickAction
                   icon={Upload} label="Upload Resource" sub="Study material, notes"
@@ -437,12 +457,20 @@ export default function MembersDashboardWorkspace() {
                 />
                 <QuickAction
                   icon={Calendar} label="Browse Events" sub="Upcoming club events"
-                  accent="#8b5cf6" onClick={() => router.push('/dashboard/events')}
+                  accent="#8b5cf6" onClick={() => router.push('/dashboard/members/events')}
                 />
                 <QuickAction
-                  icon={Trophy} label="Achievements" sub="View your milestones"
-                  accent="#f59e0b" onClick={() => router.push('/dashboard/achievements')}
+                  icon={Trophy} label="Add Club Achievements" sub="View your milestones"
+                  accent="#f59e0b" onClick={() => router.push('/dashboard/members/achievments')}
                 />
+                {/* Visible only to members holding the Achievement Manager grant.
+                    Reuses the existing club Achievement module — no duplicate page. */}
+                {isAchievementManager(user?.permissions) && (
+                  <QuickAction
+                    icon={Award} label="Add Club Achievement" sub="Log a club-wide milestone"
+                    accent="#34d399" onClick={() => router.push('/admin/achievements')}
+                  />
+                )}
               </div>
             </GlassCard>
 
@@ -454,7 +482,7 @@ export default function MembersDashboardWorkspace() {
                   <p className="text-[10px] text-slate-600 mt-0.5">Your published articles</p>
                 </div>
                 <button
-                  onClick={() => router.push('/dashboard/blogs')}
+                  onClick={() => router.push('/dashboard/members/blogs')}
                   className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
                 >
                   View all <ArrowRight className="w-3 h-3" />
@@ -495,7 +523,7 @@ export default function MembersDashboardWorkspace() {
                     <FileText className="w-7 h-7 text-slate-800" />
                     <p className="text-xs text-slate-600">No blogs yet</p>
                     <button
-                      onClick={() => router.push('/dashboard/blogs')}
+                      onClick={() => router.push('/dashboard/members/blogs')}
                       className="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors"
                     >
                       Write your first blog →
@@ -530,6 +558,7 @@ export default function MembersDashboardWorkspace() {
                 !user?.portfolio && 'Portfolio',
                 !user?.socialLinks?.github && 'GitHub',
                 (user?.skills?.length || 0) === 0 && 'Skills',
+                !user?.location && 'Location',
               ].filter(Boolean) as string[];
 
               return (
@@ -578,7 +607,7 @@ export default function MembersDashboardWorkspace() {
                   <p className="text-[10px] text-slate-600 mt-0.5">Next on the calendar</p>
                 </div>
                 <button
-                  onClick={() => router.push('/dashboard/events')}
+                  onClick={() => router.push('/dashboard/members/events')}
                   className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
                 >
                   All <ArrowRight className="w-3 h-3" />

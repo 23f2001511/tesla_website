@@ -25,7 +25,8 @@ function formatMonthLabel(date: Date) {
 
 export async function GET() {
   try {
-    const { response: authError } = await requireRole(['Admin']);
+    // Read-only analytics — every admin-panel role may view them.
+    const { response: authError } = await requireRole(['Admin', 'President', 'OfficeBearer']);
     if (authError) return authError;
 
     await connectDB();
