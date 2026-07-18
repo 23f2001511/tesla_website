@@ -561,7 +561,8 @@ function OfficerDashboard({ role }: OfficerDashboardProps) {
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={trafficData} margin={{ top:5, right:5, left:-25, bottom:0 }}>
                   <defs><linearGradient id={`gTraffic-${role}`} x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={cfg.accent} stopOpacity={0.25} /><stop offset="95%" stopColor={cfg.accent} stopOpacity={0} /></linearGradient></defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.03)" />
+                  {/* Mid-tone slate so the grid is visible on both light and dark */}
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.14)" />
                   <XAxis dataKey="name" stroke="#4b5563" fontSize={10} tickLine={false} axisLine={false} />
                   <YAxis stroke="#4b5563" fontSize={10} tickLine={false} axisLine={false} allowDecimals={false} />
                   <Tooltip content={<ChartTooltip />} cursor={{ stroke:`${cfg.accent}20` }} />
