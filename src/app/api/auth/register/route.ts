@@ -5,7 +5,8 @@ import bcrypt from 'bcryptjs';
 
 export async function POST(req: Request) {
   try {
-    const { name, email, password, rollNo } = await req.json();
+    const {
+      name,email,password,rollNo,branch,year,batch,team} = await req.json();
 
     if (!name || !email || !password) {
       return NextResponse.json({ error: 'Please provide all required fields' }, { status: 400 });
@@ -25,7 +26,21 @@ export async function POST(req: Request) {
       name,
       email,
       password: hashedPassword,
+
       rollNo,
+      branch,
+      year,
+      batch,
+
+      team,
+
+      role: 'General',
+
+      designation: 'Junior Member',
+
+      status: 'active',
+
+      isVerified: false
     });
 
     return NextResponse.json({ message: 'User registered successfully', userId: newUser._id }, { status: 201 });

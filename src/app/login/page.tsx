@@ -1,13 +1,91 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Mail, Lock, LogIn } from 'lucide-react';
 
 export default function LoginPage() {
+
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const router = useRouter();
+
+  const handleLogin = async () => {
+  try {
+    setLoading(true);
+
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        email,
+        password
+      })
+    });
+
+    const data = await res.json();
+    console.log('LOGIN RESPONSE:', data);
+    alert(`Role: ${data.role}`);
+
+    if (!res.ok) {
+      alert(data.error || 'Login failed');
+      return;
+    }
+
+    
+
+    //-------
+    console.log('ROLE:', data.role);
+
+    switch (data.role) {
+      case 'Admin':
+        router.push('/admin');
+        break;
+
+      case 'PI':
+        router.push('/pi');
+        break;
+
+      case 'President':
+        router.push('/president');
+        break;
+
+      case 'OfficeBearer':
+        router.push('/office-bearer');
+        break;
+
+      case 'TeamLeader':
+        router.push('/team-leader');
+        break;
+
+      case 'TeamMember':
+        router.push('/dashboard/profile');
+        break;
+
+      case 'Alumni':
+        router.push('/alumni');
+        break;
+
+      default:
+        router.push('/');
+    }
+
+
+
+  } catch (error) {
+    console.error(error);
+    alert('Something went wrong');
+  } finally {
+    setLoading(false);
+  }
+  };
 
   return (
     <div className="min-h-screen pt-20 flex items-center justify-center p-4">
@@ -56,8 +134,8 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <button type="button" className="w-full py-3 bg-primary hover:bg-blue-600 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(59,130,246,0.3)]">
-              Sign In <LogIn className="w-4 h-4" />
+            <button type="button" onClick={handleLogin} className="w-full py-3 bg-primary hover:bg-blue-600 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(59,130,246,0.3)]">
+             {loading ? 'Signing In...' : 'Sign In'}  <LogIn className="w-4 h-4" />
             </button>
           </form>
 
