@@ -1,39 +1,23 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import Link from 'next/link';
-
 export function CTA() {
   return (
-    <section className="py-20 relative">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div 
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8 }}
-          className="relative rounded-3xl overflow-hidden glass border border-primary/30 p-10 sm:p-16 flex flex-col items-center text-center gap-8"
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-purple-500/20 z-0" />
-          
-          <div className="relative z-10 max-w-2xl mx-auto flex flex-col items-center gap-6">
-            <h2 className="text-4xl sm:text-5xl font-bold text-white">
-              Ready to start your journey with TESLA?
-            </h2>
-            <p className="text-lg text-gray-300">
-              Join our community of innovators and build the future together. Get access to exclusive resources, mentorship, and opportunities.
-            </p>
-            
-            <div className="flex flex-wrap items-center justify-center gap-4 mt-4">
-              <Link href="/contact" className="px-8 py-4 bg-primary text-white font-semibold rounded-full hover:bg-blue-600 transition-colors shadow-[0_0_20px_rgba(59,130,246,0.5)]">
-                Apply Now
-              </Link>
-              <Link href="/about" className="px-8 py-4 bg-white/5 border border-white/10 text-white font-semibold rounded-full hover:bg-white/10 transition-colors">
-                Know More
-              </Link>
-            </div>
-          </div>
-        </motion.div>
+    <section 
+      className="relative py-32 flex items-center justify-center text-center bg-cover bg-center"
+      style={{ backgroundImage: `url('/images/footer.png')` }}
+    >
+      <div className="absolute inset-0 bg-[#0a0a0a]/70 z-0"></div>
+      
+      <div className="relative z-10 max-w-7xl mx-auto px-4 flex flex-col items-center">
+        <p className="text-sm tracking-[4px] text-primary font-bold mb-6 uppercase">
+          LIVE MUSIC TO VIBRANT LIFE
+        </p>
+        <h2 className="text-5xl md:text-[5rem] font-extrabold leading-[1.1] uppercase mb-12 max-w-[800px] text-white">
+          Concerts of a lifetime 2024
+        </h2>
+        <button className="bg-primary text-black border-none px-12 py-5 text-lg font-extrabold tracking-wider rounded-full cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_10px_20px_rgba(59,130,246,0.4)]">
+          BUY TICKETS
+        </button>
       </div>
     </section>
   );

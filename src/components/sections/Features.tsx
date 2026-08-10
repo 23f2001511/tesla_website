@@ -1,104 +1,70 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { Calendar, FileText, BookOpen, GraduationCap, Trophy, Users } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+
+const features = [
+  {
+    title: 'Location',
+    desc: 'Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam.'
+  },
+  {
+    title: 'Sound',
+    desc: 'Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam.'
+  },
+  {
+    title: 'Lighting',
+    desc: 'Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam.'
+  }
+];
 
 export function Features() {
-  const features = [
-    {
-      title: 'Events',
-      description: 'Participate in exciting workshops, hackathons and tech talks.',
-      icon: Calendar,
-      color: 'text-blue-400',
-      bg: 'bg-blue-400/10'
-    },
-    {
-      title: 'Blogs',
-      description: 'Share your knowledge and explore technical articles.',
-      icon: FileText,
-      color: 'text-orange-400',
-      bg: 'bg-orange-400/10'
-    },
-    {
-      title: 'Resources',
-      description: 'Access notes, PYQs, manuals and study materials.',
-      icon: BookOpen,
-      color: 'text-green-400',
-      bg: 'bg-green-400/10'
-    },
-    {
-      title: 'Alumni',
-      description: 'Connect with alumni and get mentorship opportunities.',
-      icon: GraduationCap,
-      color: 'text-purple-400',
-      bg: 'bg-purple-400/10'
-    },
-    {
-      title: 'Achievements',
-      description: 'Showcase your success and celebrate milestones.',
-      icon: Trophy,
-      color: 'text-pink-400',
-      bg: 'bg-pink-400/10'
-    },
-    {
-      title: 'Community',
-      description: 'Be a part of a vibrant community of innovators.',
-      icon: Users,
-      color: 'text-yellow-400',
-      bg: 'bg-yellow-400/10'
-    }
-  ];
+  const fullText = "Crafting extraordinary\nconcert experiences";
+  const [displayedText, setDisplayedText] = useState("");
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1
+  useEffect(() => {
+    let i = 0;
+    const interval = setInterval(() => {
+      setDisplayedText(fullText.slice(0, i + 1));
+      i++;
+      if (i > fullText.length) {
+        clearInterval(interval);
       }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.5 } }
-  };
+    }, 100); // typing speed
+    return () => clearInterval(interval);
+  }, []);
 
   return (
-    <section className="py-20 relative">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="mb-12">
-          <h3 className="text-sm font-semibold tracking-widest text-primary uppercase mb-2">Our Features</h3>
-          <h2 className="text-3xl sm:text-4xl font-bold text-white max-w-xl">
-            Everything you need to grow and excel
-          </h2>
-        </div>
-
-        <motion.div 
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true, margin: "-100px" }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
-        >
-          {features.map((feature, idx) => (
-            <motion.div 
-              key={idx} 
-              variants={itemVariants}
-              className="glass rounded-2xl p-6 group hover:border-primary/50 transition-colors cursor-pointer"
-            >
-              <div className="flex items-start gap-4">
-                <div className={`p-3 rounded-xl ${feature.bg} shrink-0 group-hover:scale-110 transition-transform`}>
-                  <feature.icon className={`w-6 h-6 ${feature.color}`} />
-                </div>
-                <div>
-                  <h4 className="text-lg font-semibold text-white mb-2">{feature.title}</h4>
-                  <p className="text-gray-400 text-sm leading-relaxed">{feature.description}</p>
+    <section className="py-24 relative bg-background">
+      <div className="max-w-7xl mx-auto px-4 w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16">
+          <div className="flex flex-col">
+            <h2 className="text-5xl lg:text-6xl font-extrabold leading-[1.1] tracking-tight uppercase text-white">
+              {displayedText.split('\n').map((line, idx) => (
+                <React.Fragment key={idx}>
+                  {line}
+                  {idx === 0 && displayedText.includes('\n') && <br />}
+                </React.Fragment>
+              ))}
+              <span className="inline-block w-1 bg-primary ml-1 animate-[pulse_1s_step-end_infinite]">|</span>
+            </h2>
+          </div>
+          
+          <div className="flex flex-col gap-12">
+            {features.map((item, idx) => (
+              <div key={idx} className="relative pb-8 border-b border-white/10 group">
+                <h3 className="text-3xl font-bold mb-4 uppercase text-white">{item.title}</h3>
+                <p className="text-white/60 leading-relaxed text-lg max-w-[90%]">{item.desc}</p>
+                <div className="absolute top-0 right-0 text-4xl text-primary font-light group-hover:-translate-y-1 group-hover:translate-x-1 transition-transform">
+                  ↗
                 </div>
               </div>
-            </motion.div>
-          ))}
-        </motion.div>
+            ))}
+          </div>
+        </div>
+        
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/20 tracking-[2px] uppercase">
+          www.DownloadNewThemes.com
+        </div>
       </div>
     </section>
   );

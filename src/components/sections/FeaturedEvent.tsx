@@ -1,87 +1,66 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { Calendar as CalendarIcon, Clock, MapPin } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+
+const tabs = [
+  { time: '18.00 - 22:45', date: '24 - 28 May' },
+  { time: '18.00 - 22:45', date: '24 - 28 June' },
+  { time: '18.00 - 22:45', date: '24 - 28 July' },
+  { time: '18.00 - 22:45', date: '24 - 28 August' },
+];
 
 export function FeaturedEvent() {
-  const [timeLeft, setTimeLeft] = useState({ days: 12, hours: 5, minutes: 31, seconds: 45 });
-
-  // Dummy countdown effect for visual purposes
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(prev => {
-        let { days, hours, minutes, seconds } = prev;
-        seconds--;
-        if (seconds < 0) { seconds = 59; minutes--; }
-        if (minutes < 0) { minutes = 59; hours--; }
-        if (hours < 0) { hours = 23; days--; }
-        return { days, hours, minutes, seconds };
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const [activeTab, setActiveTab] = useState(0);
 
   return (
-    <section className="py-10">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="glass rounded-3xl overflow-hidden relative border border-primary/20">
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0d0f17] via-[#0d0f17]/90 to-transparent z-10" />
-          
-          {/* Background image placeholder */}
-          <div className="absolute inset-y-0 right-0 w-1/2 bg-[url('https://images.unsplash.com/photo-1620712943543-bcc4688e7485?q=80&w=1000&auto=format&fit=crop')] bg-cover bg-center z-0 opacity-50 mix-blend-screen" />
-          
-          <div className="relative z-20 p-8 sm:p-12 lg:w-2/3 flex flex-col gap-6">
-            <div>
-              <span className="px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary bg-primary/10 rounded-full border border-primary/20">
-                Featured Event
-              </span>
-            </div>
-            
-            <h2 className="text-3xl sm:text-5xl font-bold text-white">AI/ML Workshop 2026</h2>
-            <p className="text-gray-400 text-lg max-w-xl">
-              Learn, build and deploy real-world AI models with industry experts and advance your skills.
-            </p>
+    <section className="py-20 max-w-7xl mx-auto px-4 w-full">
+      <h1 className="text-5xl md:text-[5rem] font-extrabold mb-12 uppercase text-white">Events</h1>
+      
+      <div className="flex flex-wrap sm:flex-nowrap justify-between mb-16 border-b border-white/10">
+        {tabs.map((tab, idx) => (
+          <button 
+            key={idx} 
+            className="flex-1 min-w-[50%] sm:min-w-0 bg-transparent border-none py-6 text-white flex flex-col items-start gap-2 text-left relative group transition-all duration-300"
+            onClick={() => setActiveTab(idx)}
+          >
+            <span className="text-white/50 text-sm font-semibold">{tab.time}</span>
+            <span className={`text-2xl font-bold transition-colors duration-300 ${activeTab === idx ? 'text-primary' : 'text-white group-hover:text-primary/80'}`}>
+              {tab.date}
+            </span>
+            <div className={`absolute bottom-[-1px] left-0 h-[2px] bg-primary transition-all duration-300 ${activeTab === idx ? 'w-full' : 'w-0 group-hover:w-full'}`}></div>
+          </button>
+        ))}
+      </div>
 
-            <div className="flex flex-wrap gap-6 text-sm font-medium text-gray-300">
-              <div className="flex items-center gap-2">
-                <CalendarIcon className="w-4 h-4 text-primary" />
-                24 May 2026
-              </div>
-              <div className="flex items-center gap-2">
-                <Clock className="w-4 h-4 text-primary" />
-                10:00 AM
-              </div>
-              <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-primary" />
-                Seminar Hall, CSE Block
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-8 mt-4">
-              <button className="px-8 py-3 bg-primary hover:bg-blue-600 text-white font-semibold rounded-full shadow-[0_0_15px_rgba(59,130,246,0.5)] transition-all">
-                Register Now
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+        <div className="rounded-3xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.5)] group">
+          <img 
+            src="/images/artist.png" 
+            alt="Sound artist" 
+            className="w-full h-auto block transition-transform duration-500 group-hover:scale-105 object-cover" 
+          />
+        </div>
+        
+        <div className="flex flex-col items-start">
+          <span className="inline-block px-4 py-2 border border-primary text-primary rounded-full text-sm font-bold tracking-widest mb-6">
+            CONCERT
+          </span>
+          <h2 className="text-5xl md:text-[4rem] font-extrabold mb-6 leading-[1.1] uppercase text-white">
+            Sound artist
+          </h2>
+          <p className="text-white/70 text-lg leading-[1.8] mb-10 max-w-[90%]">
+            Dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur. Dicta sunt explicabo.
+          </p>
+          
+          <div className="flex gap-4">
+            {['f', 'x', '@', 'in'].map((icon, i) => (
+              <button 
+                key={i} 
+                className="w-12 h-12 rounded-full border border-white/20 bg-transparent text-white flex items-center justify-center text-lg transition-all duration-300 hover:bg-primary hover:border-primary"
+              >
+                {icon}
               </button>
-              
-              <div className="flex flex-col gap-2">
-                <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">Event starts in</span>
-                <div className="flex gap-4">
-                  {[
-                    { label: 'Days', value: timeLeft.days },
-                    { label: 'Hours', value: timeLeft.hours },
-                    { label: 'Minutes', value: timeLeft.minutes },
-                    { label: 'Seconds', value: timeLeft.seconds }
-                  ].map((unit, idx) => (
-                    <div key={idx} className="flex flex-col items-center gap-1">
-                      <div className="w-12 h-12 bg-white/5 border border-white/10 rounded-lg flex items-center justify-center text-xl font-bold text-white">
-                        {unit.value.toString().padStart(2, '0')}
-                      </div>
-                      <span className="text-[10px] text-gray-400 uppercase">{unit.label}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </div>
