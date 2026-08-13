@@ -1,57 +1,77 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Lightbulb, Briefcase, Award, FileText } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowUpRight } from 'lucide-react';
+
+const impacts = [
+  { id: 'A', value: '60+', label: 'TIER-1 PLACEMENTS', desc: 'Google, Microsoft, Amazon, top startups' },
+  { id: 'B', value: '120+', label: 'PAID INTERNSHIPS', desc: 'Pre-final & final year students' },
+  { id: 'C', value: '30+', label: 'HACKATHONS WON', desc: 'National & inter-college competitions' },
+  { id: 'D', value: '20+', label: 'PAPERS PUBLISHED', desc: 'AI, IoT & systems research — IEEE' },
+];
 
 export function OurImpact() {
-  const impacts = [
-    { icon: Lightbulb, value: '50+', label: 'Placements', color: 'text-yellow-400', bg: 'bg-yellow-400/10' },
-    { icon: Briefcase, value: '80+', label: 'Internships', color: 'text-blue-400', bg: 'bg-blue-400/10' },
-    { icon: Award, value: '25+', label: 'Competitions Won', color: 'text-pink-400', bg: 'bg-pink-400/10' },
-    { icon: FileText, value: '15+', label: 'Research Papers', color: 'text-purple-400', bg: 'bg-purple-400/10' },
-  ];
-
   return (
-    <section className="py-20 relative">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          
-          <div className="flex flex-col gap-6">
-            <h3 className="text-sm font-semibold tracking-widest text-primary uppercase">Our Impact</h3>
-            <h2 className="text-3xl sm:text-5xl font-bold text-white leading-tight">
-              Creating impact that matters
+    <section className="relative bg-ink border-b border-line py-20 sm:py-28">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
+          {/* Left */}
+          <div className="lg:col-span-5 flex flex-col">
+            <div className="tag-mono-acid mb-3">// RECEIPTS</div>
+            <h2 className="display text-4xl sm:text-5xl lg:text-6xl text-ivory mb-6">
+              OUTPUT OVER HYPE.
             </h2>
-            <p className="text-gray-400 text-lg leading-relaxed">
-              We believe in continuous learning and creating opportunities that help students grow and achieve their dreams. Through mentorship, projects, and hackathons, we're building a culture of excellence.
+            <p className="text-ivory-2 text-sm sm:text-base leading-relaxed max-w-md mb-8">
+              We bridge classroom theory and industry engineering through
+              project building, peer mentorship, and a strong competitive
+              culture. The numbers below are cumulative since 2020.
             </p>
-            <div className="mt-4">
-              <button className="px-8 py-3 bg-primary/10 text-primary border border-primary/20 hover:bg-primary hover:text-white transition-all rounded-full font-semibold">
-                Know More About Us
-              </button>
+
+            {/* Quote */}
+            <div className="border border-line p-6 mb-8 relative">
+              <span className="absolute -top-px -left-px w-3 h-3 border-t border-l border-acid" />
+              <span className="absolute -bottom-px -right-px w-3 h-3 border-b border-r border-acid" />
+              <div className="tag-mono-acid mb-3">ALUMNI // BATCH OF '25</div>
+              <p className="text-sm text-ivory leading-relaxed italic mb-3">
+                "Joining TESLA gave me the mentorship and hands-on project
+                experience I needed to crack my SWE internship at Google."
+              </p>
+              <div className="tag-mono">— CORE TEAM LEAD, 2025</div>
             </div>
+
+            <Link href="/about" className="btn-brut self-start">
+              Our story <ArrowUpRight className="w-4 h-4" />
+            </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {impacts.map((impact, idx) => (
-              <motion.div 
-                key={idx}
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
+          {/* Right grid */}
+          <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-px bg-line border border-line">
+            {impacts.map((imp, i) => (
+              <motion.div
+                key={imp.id}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: idx * 0.1 }}
-                className="glass rounded-2xl p-6 flex items-center gap-4 hover:border-primary/30 transition-colors"
+                transition={{ duration: 0.5, delay: i * 0.08 }}
+                className="bg-ink hover:bg-ink-2 transition-colors p-6 sm:p-8 flex flex-col justify-between min-h-[220px] group"
               >
-                <div className={`p-4 rounded-xl ${impact.bg}`}>
-                  <impact.icon className={`w-8 h-8 ${impact.color}`} />
+                <div className="flex items-start justify-between">
+                  <span className="tag-mono text-muted group-hover:text-acid transition-colors">
+                    [{imp.id}]
+                  </span>
+                  <span className="w-2 h-2 bg-line-2 group-hover:bg-acid transition-colors" />
                 </div>
                 <div>
-                  <div className="text-3xl font-bold text-white">{impact.value}</div>
-                  <div className="text-sm text-gray-400 font-medium">{impact.label}</div>
+                  <div className="display text-5xl sm:text-6xl text-ivory mb-2">
+                    {imp.value}
+                  </div>
+                  <div className="tag-mono-acid mb-1">{imp.label}</div>
+                  <div className="text-xs text-muted">{imp.desc}</div>
                 </div>
               </motion.div>
             ))}
           </div>
-
         </div>
       </div>
     </section>

@@ -1,66 +1,155 @@
 'use client';
 
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
+import { ArrowUpRight } from 'lucide-react';
 
-const tabs = [
-  { time: '18.00 - 22:45', date: '24 - 28 May' },
-  { time: '18.00 - 22:45', date: '24 - 28 June' },
-  { time: '18.00 - 22:45', date: '24 - 28 July' },
-  { time: '18.00 - 22:45', date: '24 - 28 August' },
+const tracks = [
+  {
+    id: 'T1',
+    name: 'AI & GenAI Agents',
+    prize: '₹2.5L',
+    desc: 'LLM agents, multimodal vision, autonomous systems solving real problems.',
+  },
+  {
+    id: 'T2',
+    name: 'Web3 & Cloud',
+    prize: '₹2.0L',
+    desc: 'Distributed systems, smart contracts, high-performance microservices.',
+  },
+  {
+    id: 'T3',
+    name: 'Hardware & Robotics',
+    prize: '₹1.8L',
+    desc: 'Microcontroller prototypes, sensory IoT, autonomous robotics.',
+  },
+  {
+    id: 'T4',
+    name: 'Open Innovation',
+    prize: '₹1.5L',
+    desc: 'No domain limits. Build for climate, health, or education.',
+  },
+];
+
+const meta: Array<[string, string]> = [
+  ['DATE', 'OCT 24–26, 2026'],
+  ['FORMAT', '36-HOUR SPRINT'],
+  ['VENUE', 'AUDITORIUM + ONLINE'],
+  ['TEAM', '2–4 MEMBERS'],
 ];
 
 export function FeaturedEvent() {
-  const [activeTab, setActiveTab] = useState(0);
+  const [active, setActive] = useState(0);
+  const current = tracks[active];
 
   return (
-    <section className="py-20 max-w-7xl mx-auto px-4 w-full">
-      <h1 className="text-5xl md:text-[5rem] font-extrabold mb-12 uppercase text-white">Events</h1>
-      
-      <div className="flex flex-wrap sm:flex-nowrap justify-between mb-16 border-b border-white/10">
-        {tabs.map((tab, idx) => (
-          <button 
-            key={idx} 
-            className="flex-1 min-w-[50%] sm:min-w-0 bg-transparent border-none py-6 text-white flex flex-col items-start gap-2 text-left relative group transition-all duration-300"
-            onClick={() => setActiveTab(idx)}
-          >
-            <span className="text-white/50 text-sm font-semibold">{tab.time}</span>
-            <span className={`text-2xl font-bold transition-colors duration-300 ${activeTab === idx ? 'text-primary' : 'text-white group-hover:text-primary/80'}`}>
-              {tab.date}
-            </span>
-            <div className={`absolute bottom-[-1px] left-0 h-[2px] bg-primary transition-all duration-300 ${activeTab === idx ? 'w-full' : 'w-0 group-hover:w-full'}`}></div>
-          </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-        <div className="rounded-3xl overflow-hidden shadow-[0_20px_40px_rgba(0,0,0,0.5)] group">
-          <img 
-            src="/images/artist.png" 
-            alt="Sound artist" 
-            className="w-full h-auto block transition-transform duration-500 group-hover:scale-105 object-cover" 
-          />
+    <section className="relative bg-ink border-b border-line py-20 sm:py-28">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 pb-10 mb-12 border-b border-line">
+          <div>
+            <div className="tag-mono-acid mb-3">// FLAGSHIP — 2026</div>
+            <h2 className="display text-4xl sm:text-5xl lg:text-7xl text-ivory">
+              HACK-TESLA<span className="text-acid">'26</span>
+            </h2>
+          </div>
+          <div className="tag-mono sm:text-right">
+            36 HOURS. NATIONAL LEVEL.<br />₹7.8L+ PRIZE POOL.
+          </div>
         </div>
-        
-        <div className="flex flex-col items-start">
-          <span className="inline-block px-4 py-2 border border-primary text-primary rounded-full text-sm font-bold tracking-widest mb-6">
-            CONCERT
-          </span>
-          <h2 className="text-5xl md:text-[4rem] font-extrabold mb-6 leading-[1.1] uppercase text-white">
-            Sound artist
-          </h2>
-          <p className="text-white/70 text-lg leading-[1.8] mb-10 max-w-[90%]">
-            Dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur. Dicta sunt explicabo.
-          </p>
-          
-          <div className="flex gap-4">
-            {['f', 'x', '@', 'in'].map((icon, i) => (
-              <button 
-                key={i} 
-                className="w-12 h-12 rounded-full border border-white/20 bg-transparent text-white flex items-center justify-center text-lg transition-all duration-300 hover:bg-primary hover:border-primary"
-              >
-                {icon}
-              </button>
-            ))}
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          {/* Track list — terminal-style */}
+          <div className="lg:col-span-5">
+            <div className="border border-line">
+              <div className="border-b border-line bg-ink-2 px-4 py-2.5 flex items-center justify-between">
+                <span className="tag-mono">SELECT_TRACK.SH</span>
+                <span className="flex gap-1.5">
+                  <span className="w-2 h-2 border border-line-2" />
+                  <span className="w-2 h-2 border border-line-2" />
+                  <span className="w-2 h-2 bg-acid" />
+                </span>
+              </div>
+              {tracks.map((t, i) => {
+                const isActive = i === active;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setActive(i)}
+                    className={`w-full text-left px-4 sm:px-5 py-5 border-b border-line last:border-b-0 transition-colors flex items-center justify-between gap-4 ${
+                      isActive
+                        ? 'bg-acid text-acid-ink'
+                        : 'bg-ink hover:bg-ink-2 text-ivory'
+                    }`}
+                  >
+                    <div>
+                      <div
+                        className={`font-mono text-[10px] tracking-[0.14em] uppercase mb-1 ${
+                          isActive ? 'text-acid-ink/70' : 'text-muted'
+                        }`}
+                      >
+                        [{t.id}] — PRIZE {t.prize}
+                      </div>
+                      <div className="display text-lg sm:text-xl leading-tight">
+                        {t.name}
+                      </div>
+                    </div>
+                    <ArrowUpRight
+                      className={`w-4 h-4 shrink-0 ${
+                        isActive ? 'text-acid-ink' : 'text-muted'
+                      }`}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Detail panel */}
+          <div className="lg:col-span-7">
+            <div className="border border-line corner-marks bg-ink-2 p-6 sm:p-10 h-full flex flex-col">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={current.id}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.25 }}
+                  className="flex flex-col h-full"
+                >
+                  <div className="tag-mono-acid mb-4">// {current.name.toUpperCase()}</div>
+                  <h3 className="display text-3xl sm:text-5xl text-ivory leading-[0.95] mb-6">
+                    BUILD. BREAK. SHIP.
+                  </h3>
+                  <p className="text-ivory-2 text-sm sm:text-base leading-relaxed max-w-xl mb-8">
+                    {current.desc} Bring a laptop, a team, and 36 hours of
+                    stubbornness. Mentors from Google, Microsoft and top
+                    startups will be on the floor.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-px bg-line border border-line mb-8">
+                    {meta.map(([k, v]) => (
+                      <div key={k} className="bg-ink p-4">
+                        <div className="tag-mono mb-1">{k}</div>
+                        <div className="font-mono text-xs sm:text-sm text-ivory font-bold">
+                          {v}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap gap-3 mt-auto pt-4">
+                    <Link href="/events" className="btn-acid">
+                      Register <ArrowUpRight className="w-4 h-4" />
+                    </Link>
+                    <Link href="/about" className="btn-brut">
+                      Rules & FAQ
+                    </Link>
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </div>

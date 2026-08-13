@@ -2,38 +2,49 @@
 
 import { motion } from 'framer-motion';
 
+const images = [
+  { id: 1, url: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?q=80&w=1200&auto=format&fit=crop', caption: 'HACK-TESLA 2025 — FINALS', colSpan: 'md:col-span-8' },
+  { id: 2, url: 'https://images.unsplash.com/photo-1515187029135-18ee286d815b?q=80&w=800&auto=format&fit=crop', caption: 'WEB BOOTCAMP, WK 3', colSpan: 'md:col-span-4' },
+  { id: 3, url: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=800&auto=format&fit=crop', caption: 'CORE TEAM SYNC', colSpan: 'md:col-span-4' },
+  { id: 4, url: 'https://images.unsplash.com/photo-1523908511403-7fc7b25592f4?q=80&w=800&auto=format&fit=crop', caption: 'ROBOTICS LAB NIGHT', colSpan: 'md:col-span-4' },
+  { id: 5, url: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?q=80&w=1200&auto=format&fit=crop', caption: 'AI RESEARCH GROUP', colSpan: 'md:col-span-8' },
+];
+
 export default function GalleryPage() {
-  const images = [
-    { id: 1, url: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?q=80&w=600&auto=format&fit=crop', colSpan: 'col-span-12 md:col-span-8', rowSpan: 'row-span-2' },
-    { id: 2, url: 'https://images.unsplash.com/photo-1515187029135-18ee286d815b?q=80&w=600&auto=format&fit=crop', colSpan: 'col-span-12 md:col-span-4', rowSpan: 'row-span-1' },
-    { id: 3, url: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=600&auto=format&fit=crop', colSpan: 'col-span-12 md:col-span-4', rowSpan: 'row-span-1' },
-    { id: 4, url: 'https://images.unsplash.com/photo-1523908511403-7fc7b25592f4?q=80&w=600&auto=format&fit=crop', colSpan: 'col-span-12 md:col-span-4', rowSpan: 'row-span-1' },
-    { id: 5, url: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?q=80&w=600&auto=format&fit=crop', colSpan: 'col-span-12 md:col-span-8', rowSpan: 'row-span-1' }
-  ];
-
   return (
-    <div className="pt-24 pb-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="text-center max-w-3xl mx-auto mb-16">
-        <h1 className="text-4xl md:text-6xl font-bold mb-6">Glimpses of Our <span className="text-gradient">Journey</span></h1>
-        <p className="text-gray-400 text-lg">Memories from workshops, hackathons, and fun events.</p>
-      </div>
+    <div className="bg-ink min-h-screen">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 sm:pt-24">
+        {/* Header */}
+        <div className="pb-10 mb-10 border-b border-line">
+          <div className="tag-mono-acid mb-3">// FIELD RECORDINGS</div>
+          <h1 className="display text-5xl sm:text-7xl text-ivory">GALLERY</h1>
+          <p className="text-ivory-2 mt-4 max-w-md text-sm leading-relaxed">
+            Screenshots from the process — hack nights, workshops, demo days.
+          </p>
+        </div>
 
-      <div className="grid grid-cols-12 gap-4 auto-rows-[250px]">
-        {images.map((img, idx) => (
-          <motion.div 
-            key={img.id}
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: idx * 0.1 }}
-            className={`relative rounded-2xl overflow-hidden group cursor-pointer ${img.colSpan} ${img.rowSpan}`}
-          >
-            <div className="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors z-10" />
-            <img src={img.url} alt="Gallery" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-20 flex items-end p-6">
-              <span className="text-white font-bold tracking-wide">View Image</span>
-            </div>
-          </motion.div>
-        ))}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-px bg-line border border-line">
+          {images.map((img, i) => (
+            <motion.div
+              key={img.id}
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: i * 0.06 }}
+              className={`relative group overflow-hidden bg-ink aspect-[4/3] ${img.colSpan}`}
+            >
+              <img
+                src={img.url}
+                alt={img.caption}
+                className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-[1.02] transition-all duration-500"
+              />
+              <div className="absolute inset-x-0 bottom-0 bg-ink border-t border-line px-4 py-2.5 flex items-center justify-between translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+                <span className="tag-mono-acid">{img.caption}</span>
+                <span className="tag-mono">IMG_{String(img.id).padStart(3, '0')}</span>
+              </div>
+            </motion.div>
+          ))}
+        </div>
       </div>
     </div>
   );

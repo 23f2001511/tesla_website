@@ -1,101 +1,134 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Mail, MapPin, Phone, Send } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
+import { useState } from 'react';
+
+const channels = [
+  { k: 'EMAIL', v: 'teslaclub@college.edu', href: 'mailto:teslaclub@college.edu' },
+  { k: 'LOCATION', v: 'CSE Block, Campus', href: '#' },
+  { k: 'DISCORD', v: 'discord.gg/tesla', href: '#' },
+  { k: 'HOURS', v: 'Lab open 16:00–21:00', href: '#' },
+];
 
 export default function ContactPage() {
+  const [sent, setSent] = useState(false);
+
   return (
-    <div className="pt-24 pb-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div className="text-center max-w-2xl mx-auto mb-16">
-        <h1 className="text-4xl md:text-6xl font-bold mb-6">Contact <span className="text-gradient">Us</span></h1>
-        <p className="text-gray-400 text-lg">
-          Have a question or want to join the club? We'd love to hear from you.
-        </p>
-      </div>
+    <div className="bg-ink min-h-screen">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 sm:pt-24">
+        {/* Header */}
+        <div className="pb-10 mb-12 border-b border-line">
+          <div className="tag-mono-acid mb-3">// CONTACT</div>
+          <h1 className="display text-5xl sm:text-7xl text-ivory">
+            SAY HELLO<span className="text-acid">.</span>
+          </h1>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-        {/* Contact Info */}
-        <motion.div 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="flex flex-col gap-8"
-        >
-          <div className="glass p-8 rounded-3xl border-primary/20">
-            <h3 className="text-2xl font-bold text-white mb-6">Get in touch</h3>
-            
-            <div className="space-y-6">
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-primary/10 rounded-xl text-primary shrink-0"><MapPin className="w-6 h-6" /></div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+          {/* Left: direct channels */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="lg:col-span-5"
+          >
+            <div className="tag-mono mb-6">DIRECT CHANNELS —</div>
+            <div className="border border-line">
+              {channels.map((c, i) => (
+                <a
+                  key={c.k}
+                  href={c.href}
+                  className={`flex items-center justify-between px-5 py-5 group hover:bg-ink-2 transition-colors ${
+                    i !== 0 ? 'border-t border-line' : ''
+                  }`}
+                >
+                  <div>
+                    <div className="tag-mono mb-1">{c.k}</div>
+                    <div className="font-mono text-sm text-ivory group-hover:text-acid transition-colors">
+                      {c.v}
+                    </div>
+                  </div>
+                  <ArrowUpRight className="w-4 h-4 text-muted group-hover:text-acid group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+                </a>
+              ))}
+            </div>
+
+            <div className="border border-line border-t-0 p-5">
+              <div className="tag-mono-acid mb-2">// WANT TO JOIN?</div>
+              <p className="text-sm text-muted leading-relaxed">
+                Show up to any open session — no forms. Or send a message here
+                and a core member will reply within 48 hours.
+              </p>
+            </div>
+          </motion.div>
+
+          {/* Right: form */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="lg:col-span-7"
+          >
+            <form
+              className="border border-line corner-marks p-6 sm:p-10 flex flex-col gap-6"
+              onSubmit={(e) => {
+                e.preventDefault();
+                setSent(true);
+              }}
+            >
+              <div className="tag-mono-acid">// NEW MESSAGE</div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div>
-                  <h4 className="text-white font-medium">Location</h4>
-                  <p className="text-gray-400 text-sm mt-1">CSE Block, College Campus,<br/>India 400001</p>
+                  <label className="tag-mono block mb-2">NAME</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Jane Doe"
+                    className="w-full bg-transparent border border-line focus:border-acid px-4 py-3 text-sm text-ivory placeholder:text-muted focus:outline-none transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="tag-mono block mb-2">EMAIL</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="jane@college.edu"
+                    className="w-full bg-transparent border border-line focus:border-acid px-4 py-3 text-sm text-ivory placeholder:text-muted focus:outline-none transition-colors"
+                  />
                 </div>
               </div>
-              
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-primary/10 rounded-xl text-primary shrink-0"><Mail className="w-6 h-6" /></div>
-                <div>
-                  <h4 className="text-white font-medium">Email</h4>
-                  <p className="text-gray-400 text-sm mt-1">teslaclub@college.edu</p>
-                </div>
-              </div>
-              
-              <div className="flex items-start gap-4">
-                <div className="p-3 bg-primary/10 rounded-xl text-primary shrink-0"><Phone className="w-6 h-6" /></div>
-                <div>
-                  <h4 className="text-white font-medium">Phone</h4>
-                  <p className="text-gray-400 text-sm mt-1">+91 98765 43210</p>
-                </div>
-              </div>
-            </div>
-          </div>
 
-          <div className="glass p-8 rounded-3xl">
-            <h3 className="text-2xl font-bold text-white mb-4">Join Our Discord</h3>
-            <p className="text-gray-400 mb-6">Be a part of our thriving online community of developers and designers.</p>
-            <button className="w-full py-3 bg-[#5865F2] hover:bg-[#4752C4] text-white rounded-xl font-bold transition-colors">
-              Join Discord Server
-            </button>
-          </div>
-        </motion.div>
+              <div>
+                <label className="tag-mono block mb-2">SUBJECT</label>
+                <select
+                  className="w-full bg-ink border border-line focus:border-acid px-4 py-3 text-sm text-ivory focus:outline-none transition-colors appearance-none"
+                >
+                  <option>General inquiry</option>
+                  <option>Membership</option>
+                  <option>Sponsorship</option>
+                  <option>Speaking / collab</option>
+                </select>
+              </div>
 
-        {/* Contact Form */}
-        <motion.div 
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-        >
-          <form className="glass p-8 rounded-3xl flex flex-col gap-6">
-            <h3 className="text-2xl font-bold text-white mb-2">Send us a message</h3>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">Full Name</label>
-              <input type="text" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary/50 transition-colors" placeholder="John Doe" />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">Email Address</label>
-              <input type="email" className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary/50 transition-colors" placeholder="john@example.com" />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">Subject</label>
-              <select className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-gray-400 focus:outline-none focus:border-primary/50 transition-colors appearance-none">
-                <option value="general">General Inquiry</option>
-                <option value="join">Membership Request</option>
-                <option value="sponsor">Sponsorship</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-400 mb-2">Message</label>
-              <textarea rows={4} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-primary/50 transition-colors" placeholder="How can we help you?"></textarea>
-            </div>
-            
-            <button type="button" className="w-full py-4 mt-2 bg-primary hover:bg-blue-600 text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(59,130,246,0.3)]">
-              Send Message <Send className="w-4 h-4" />
-            </button>
-          </form>
-        </motion.div>
+              <div>
+                <label className="tag-mono block mb-2">MESSAGE</label>
+                <textarea
+                  rows={5}
+                  required
+                  placeholder="What's on your mind?"
+                  className="w-full bg-transparent border border-line focus:border-acid px-4 py-3 text-sm text-ivory placeholder:text-muted focus:outline-none transition-colors resize-none"
+                />
+              </div>
+
+              <button type="submit" className="btn-acid self-start">
+                {sent ? 'Message sent — we\'ll reply soon' : 'Send message'}
+                <ArrowUpRight className="w-4 h-4" />
+              </button>
+            </form>
+          </motion.div>
+        </div>
       </div>
     </div>
   );

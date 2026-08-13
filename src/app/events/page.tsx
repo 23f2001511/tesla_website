@@ -2,80 +2,110 @@
 
 import { motion } from 'framer-motion';
 import { useState } from 'react';
-import { Calendar, Clock, MapPin, Search } from 'lucide-react';
 
 export default function EventsPage() {
-  const [activeTab, setActiveTab] = useState('upcoming');
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
   const [filter, setFilter] = useState('all');
 
   const events = [
-    { id: 1, title: "Web Dev Bootcamp", category: "workshop", date: "28 May 2026", time: "10:00 AM", status: "upcoming" },
-    { id: 2, title: "AI/ML Hackathon", category: "hackathon", date: "15 Jun 2026", time: "09:00 AM", status: "upcoming" },
-    { id: 3, title: "Cyber Security 101", category: "talk", date: "10 Jan 2026", time: "02:00 PM", status: "past" }
+    { id: 1, title: 'Web Dev Bootcamp', category: 'workshop', date: '28 MAY 2026', time: '10:00', venue: 'Lab 1, CSE Block', status: 'upcoming' },
+    { id: 2, title: 'AI/ML Hackathon', category: 'hackathon', date: '15 JUN 2026', time: '09:00', venue: 'Auditorium', status: 'upcoming' },
+    { id: 3, title: 'Cyber Security 101', category: 'talk', date: '10 JAN 2026', time: '14:00', venue: 'Seminar Hall A', status: 'past' },
   ];
 
-  const filteredEvents = events.filter(e => e.status === activeTab && (filter === 'all' || e.category === filter));
+  const filtered = events.filter(
+    (e) => e.status === activeTab && (filter === 'all' || e.category === filter)
+  );
 
   return (
-    <div className="pt-24 pb-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      
-      <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
-        <div>
-          <h1 className="text-4xl md:text-6xl font-bold mb-4">Events</h1>
-          <p className="text-gray-400 text-lg max-w-xl">Discover and register for upcoming workshops, hackathons, and guest lectures.</p>
-        </div>
-        
-        <div className="flex bg-white/5 p-1 rounded-xl glass">
-          <button onClick={() => setActiveTab('upcoming')} className={`px-6 py-2 rounded-lg font-medium transition-colors ${activeTab === 'upcoming' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}>Upcoming</button>
-          <button onClick={() => setActiveTab('past')} className={`px-6 py-2 rounded-lg font-medium transition-colors ${activeTab === 'past' ? 'bg-primary text-white' : 'text-gray-400 hover:text-white'}`}>Past</button>
-        </div>
-      </div>
-
-      <div className="flex gap-4 mb-8 overflow-x-auto pb-2 hide-scrollbar">
-        {['all', 'workshop', 'hackathon', 'talk'].map(cat => (
-          <button key={cat} onClick={() => setFilter(cat)} className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors capitalize ${filter === cat ? 'border-primary text-primary bg-primary/10' : 'border-white/10 text-gray-400 hover:border-white/30'}`}>
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredEvents.map((event, idx) => (
-          <motion.div 
-            key={event.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.1 }}
-            className="glass rounded-2xl overflow-hidden flex flex-col group"
-          >
-            <div className="h-48 bg-white/5 relative overflow-hidden flex items-center justify-center">
-              <span className="text-white/20 font-bold text-2xl">POSTER</span>
-              <div className="absolute top-4 right-4 bg-background/80 backdrop-blur px-3 py-1 rounded text-xs font-bold text-primary uppercase border border-primary/20">
-                {event.category}
-              </div>
-            </div>
-            <div className="p-6 flex flex-col gap-4 flex-grow">
-              <h3 className="text-xl font-bold text-white">{event.title}</h3>
-              <div className="flex flex-col gap-2 text-sm text-gray-400">
-                <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-primary" /> {event.date}</div>
-                <div className="flex items-center gap-2"><Clock className="w-4 h-4 text-primary" /> {event.time}</div>
-                <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-primary" /> Campus</div>
-              </div>
-              {activeTab === 'upcoming' && (
-                <button className="w-full mt-4 py-2.5 bg-primary/10 hover:bg-primary text-primary hover:text-white border border-primary/20 rounded-lg font-semibold transition-all">
-                  Register Now
-                </button>
-              )}
-            </div>
-          </motion.div>
-        ))}
-        {filteredEvents.length === 0 && (
-          <div className="col-span-full py-20 text-center text-gray-400">
-            No events found for this category.
+    <div className="bg-ink min-h-screen">
+      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 sm:pt-24">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-10 mb-10 border-b border-line">
+          <div>
+            <div className="tag-mono-acid mb-3">// SCHEDULE</div>
+            <h1 className="display text-5xl sm:text-7xl text-ivory">EVENTS</h1>
+            <p className="text-ivory-2 mt-4 max-w-md text-sm leading-relaxed">
+              Workshops, hackathons, guest lectures. Everything is free for
+              members.
+            </p>
           </div>
-        )}
-      </div>
 
+          <div className="flex border border-line">
+            {(['upcoming', 'past'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-6 py-3 font-mono text-xs tracking-[0.14em] uppercase transition-colors ${
+                  activeTab === tab
+                    ? 'bg-acid text-acid-ink font-bold'
+                    : 'text-ivory-2 hover:text-ivory'
+                }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Filter row */}
+        <div className="flex flex-wrap gap-2 mb-10">
+          {['all', 'workshop', 'hackathon', 'talk'].map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setFilter(cat)}
+              className={`px-4 py-1.5 font-mono text-[11px] tracking-[0.14em] uppercase border transition-colors ${
+                filter === cat
+                  ? 'border-acid text-acid'
+                  : 'border-line text-muted hover:text-ivory hover:border-line-2'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* List */}
+        <div className="border border-line">
+          {filtered.map((event, i) => (
+            <motion.div
+              key={event.id}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: i * 0.05 }}
+              className="grid grid-cols-12 items-center border-b border-line last:border-b-0 hover:bg-ink-2 transition-colors group"
+            >
+              <div className="col-span-4 sm:col-span-2 border-r border-line px-4 sm:px-6 py-6">
+                <div className="tag-mono">{event.date}</div>
+                <div className="font-mono text-xs text-muted mt-1">{event.time}</div>
+              </div>
+              <div className="col-span-8 sm:col-span-6 px-4 sm:px-6 py-6">
+                <h3 className="display text-xl sm:text-2xl text-ivory group-hover:text-acid transition-colors">
+                  {event.title}
+                </h3>
+                <div className="tag-mono mt-2">{event.venue}</div>
+              </div>
+              <div className="hidden sm:flex sm:col-span-2 border-l border-line px-4 py-6 items-center">
+                <span className="tag-mono-acid">{event.category.toUpperCase()}</span>
+              </div>
+              <div className="col-span-12 sm:col-span-2 border-t sm:border-t-0 sm:border-l border-line px-4 py-4 sm:py-6">
+                {activeTab === 'upcoming' ? (
+                  <button className="w-full btn-acid !py-2.5 justify-center">
+                    Register
+                  </button>
+                ) : (
+                  <span className="tag-mono block text-center py-2.5">ARCHIVED</span>
+                )}
+              </div>
+            </motion.div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="py-20 text-center tag-mono">
+              NO {filter.toUpperCase()} EVENTS — CHECK BACK SOON
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
