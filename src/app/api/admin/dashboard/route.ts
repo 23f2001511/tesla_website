@@ -1,11 +1,17 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
+import { verifyAdminSession } from '@/lib/adminAuth';
 import { User } from '@/models/User';
 import { Team } from '@/models/Team';
 import { Event } from '@/models/Event';
 
 export async function GET() {
   try {
+    const auth = await verifyAdminSession();
+    if (!auth.authorized) {
+      return NextResponse.json({ success: false, error: auth.reason }, { status: 401 });
+    }
+
     await connectDB();
 
     const totalMembers = await User.countDocuments();
@@ -16,7 +22,7 @@ export async function GET() {
     const totalTeams = await Team.countDocuments();
 
     const upcomingEvents = await Event.countDocuments({
-      date: { $gte: new Date() },
+      status: 'upcoming',
     });
 
     return NextResponse.json({

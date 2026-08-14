@@ -13,6 +13,7 @@ export interface IBlog extends Document {
   status: 'Draft' | 'Published';
   publishedDate: string;
   views: number;
+  authorId?: mongoose.Types.ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -35,6 +36,7 @@ const BlogSchema = new Schema<IBlog>(
     },
     publishedDate: { type: String, default: '' },
     views: { type: Number, default: 0 },
+    authorId: { type: Schema.Types.ObjectId, ref: 'User', default: null },
   },
   { timestamps: true }
 );

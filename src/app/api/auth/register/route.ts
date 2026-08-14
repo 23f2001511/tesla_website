@@ -34,7 +34,7 @@ export async function POST(req: Request) {
 
       team,
 
-      role: 'General',
+      role: 'TeamMember',
 
       designation: 'Junior Member',
 

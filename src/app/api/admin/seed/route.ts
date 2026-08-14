@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
+import { verifyAdminSession } from '@/lib/adminAuth';
 import { TeamMember } from '@/models/TeamMember';
 import { Event } from '@/models/Event';
 import { FlagshipEvent } from '@/models/FlagshipEvent';
@@ -323,6 +324,11 @@ const initialSettings = {
 
 export async function POST() {
   try {
+    const auth = await verifyAdminSession();
+    if (!auth.authorized) {
+      return NextResponse.json({ success: false, error: auth.reason }, { status: 401 });
+    }
+
     await connectDB();
 
     // Seed Team Members

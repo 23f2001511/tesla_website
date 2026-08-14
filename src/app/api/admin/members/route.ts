@@ -2,9 +2,15 @@ import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { User } from '@/models/User';
 import bcrypt from 'bcryptjs';
+import { verifyAdminSession } from '@/lib/adminAuth';
 
 export async function GET() {
   try {
+    const auth = await verifyAdminSession();
+    if (!auth.authorized) {
+      return NextResponse.json({ success: false, error: auth.reason }, { status: 401 });
+    }
+
     await connectDB();
 
     const members = await User.find({})
@@ -35,6 +41,11 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const auth = await verifyAdminSession();
+    if (!auth.authorized) {
+      return NextResponse.json({ success: false, error: auth.reason }, { status: 401 });
+    }
+
     await connectDB();
 
     const {

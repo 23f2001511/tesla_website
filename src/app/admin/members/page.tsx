@@ -9,10 +9,8 @@ export default function AdminMembers() {
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-
-
-
   const [showModal, setShowModal] = useState(false);
+  const [editingMember, setEditingMember] = useState<any>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -20,13 +18,10 @@ export default function AdminMembers() {
     password: '',
     role: 'TeamMember',
     team: '',
+    designation: '',
+    status: 'active',
   });
 
-
-
-
-
-  useEffect(() => {
   const fetchMembers = async () => {
     try {
       const res = await fetch('/api/admin/members');
@@ -42,52 +37,117 @@ export default function AdminMembers() {
     }
   };
 
-  fetchMembers();
+  useEffect(() => {
+    fetchMembers();
   }, []);
 
+  const resetForm = () => {
+    setFormData({
+      name: '',
+      email: '',
+      password: '',
+      role: 'TeamMember',
+      team: '',
+      designation: '',
+      status: 'active',
+    });
+  };
 
-
-  const handleCreateMember = async () => {
+  const handleSubmit = async () => {
     try {
-      const res = await fetch('/api/admin/members', {
-        method: 'POST',
+      const isEditing = !!editingMember;
+      const url = isEditing
+        ? `/api/admin/members/${editingMember._id}`
+        : '/api/admin/members';
+      const method = isEditing ? 'PUT' : 'POST';
+
+      const body: any = { ...formData };
+      if (isEditing && !body.password) {
+        delete body.password;
+      }
+
+      const res = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        alert(data.message || 'Failed to create member');
+        alert(data.message || data.error || 'Failed to save member');
         return;
       }
 
-      alert('Member Created Successfully');
+      alert(isEditing ? 'Member Updated Successfully' : 'Member Created Successfully');
 
       setShowModal(false);
+      setEditingMember(null);
+      resetForm();
 
-      setFormData({
-        name: '',
-        email: '',
-        password: '',
-        role: 'TeamMember',
-        team: '',
-      });
-
-      const membersRes = await fetch('/api/admin/members');
-      const membersData = await membersRes.json();
-
-      if (membersData.success) {
-        setMembers(membersData.members);
-      }
-
+      await fetchMembers();
     } catch (error) {
       console.error(error);
       alert('Something went wrong');
     }
   };
+
+  const handleDelete = async (member: any) => {
+    const ok = confirm(`Delete member "${member.name}"? This cannot be undone.`);
+    if (!ok) return;
+
+    try {
+      const res = await fetch(`/api/admin/members/${member._id}`, {
+        method: 'DELETE',
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.message || data.error || 'Failed to delete member');
+        return;
+      }
+
+      setMembers(members.filter((m) => m._id !== member._id));
+      alert('Member deleted');
+    } catch (error) {
+      console.error(error);
+      alert('Something went wrong');
+    }
+  };
+
+  const openCreateModal = () => {
+    setEditingMember(null);
+    resetForm();
+    setShowModal(true);
+  };
+
+  const openEditModal = (member: any) => {
+    setEditingMember(member);
+    setFormData({
+      name: member.name || '',
+      email: member.email || '',
+      password: '',
+      role: member.role || 'TeamMember',
+      team: member.team || '',
+      designation: member.designation || '',
+      status: member.status || 'active',
+    });
+    setShowModal(true);
+  };
+
+  const filteredMembers = members.filter((member) => {
+    const q = search.toLowerCase();
+    return (
+      !q ||
+      member.name?.toLowerCase().includes(q) ||
+      member.email?.toLowerCase().includes(q) ||
+      member.role?.toLowerCase().includes(q) ||
+      member.designation?.toLowerCase().includes(q)
+    );
+  });
 
   return (
     <div className="max-w-7xl mx-auto space-y-6">
@@ -96,12 +156,11 @@ export default function AdminMembers() {
           <h1 className="text-3xl font-bold text-white mb-2">Member Management</h1>
           <p className="text-gray-400">View, manage roles, and activate/deactivate members.</p>
         </div>
-        
 
         <button
-          onClick={() => setShowModal(true)}
+          onClick={openCreateModal}
           className="px-4 py-2 bg-primary text-white font-medium rounded-lg hover:bg-blue-600 transition-colors"
-          >
+        >
           Add New Member
         </button>
       </div>
@@ -110,16 +169,16 @@ export default function AdminMembers() {
         {/* Toolbar */}
         <div className="p-4 border-b border-white/5 flex flex-col sm:flex-row justify-between gap-4">
           <div className="relative w-full sm:w-80">
-            <input 
-              type="text" 
-              placeholder="Search members..." 
+            <input
+              type="text"
+              placeholder="Search members..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full bg-white/5 border border-white/10 rounded-lg py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-primary/50 transition-colors"
             />
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           </div>
-          
+
           <button className="flex items-center gap-2 px-4 py-2 bg-white/5 border border-white/10 rounded-lg text-sm font-medium text-gray-300 hover:text-white transition-colors">
             <Filter className="w-4 h-4" /> Filter
           </button>
@@ -139,16 +198,23 @@ export default function AdminMembers() {
             </thead>
 
             <tbody>
-
               {loading && (
-              <tr>
-                <td colSpan={5} className="p-6 text-center text-gray-400">
-                  Loading Members...
-                </td>
-              </tr>
+                <tr>
+                  <td colSpan={5} className="p-6 text-center text-gray-400">
+                    Loading Members...
+                  </td>
+                </tr>
               )}
 
-              {members.map((member) => (
+              {!loading && filteredMembers.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="p-6 text-center text-gray-400">
+                    No members found.
+                  </td>
+                </tr>
+              )}
+
+              {filteredMembers.map((member) => (
                 <tr key={member._id} className="border-b border-white/5 hover:bg-white/[0.02] transition-colors">
                   <td className="p-4">
                     <div className="flex flex-col">
@@ -177,8 +243,20 @@ export default function AdminMembers() {
                   <td className="p-4 text-sm text-gray-400">{new Date(member.createdAt).toLocaleDateString()}</td>
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button className="p-2 text-gray-400 hover:text-primary transition-colors bg-white/5 rounded-lg"><Edit2 className="w-4 h-4" /></button>
-                      <button className="p-2 text-gray-400 hover:text-red-400 transition-colors bg-white/5 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                      <button
+                        onClick={() => openEditModal(member)}
+                        className="p-2 text-gray-400 hover:text-primary transition-colors bg-white/5 rounded-lg"
+                        title="Edit member"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(member)}
+                        className="p-2 text-gray-400 hover:text-red-400 transition-colors bg-white/5 rounded-lg"
+                        title="Delete member"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -186,10 +264,10 @@ export default function AdminMembers() {
             </tbody>
           </table>
         </div>
-        
+
         {/* Pagination placeholder */}
         <div className="p-4 border-t border-white/5 flex items-center justify-between text-sm text-gray-400">
-          <span> Showing {members.length} member(s)</span>
+          <span> Showing {filteredMembers.length} member(s)</span>
           <div className="flex gap-2">
             <button className="px-3 py-1 bg-white/5 rounded hover:bg-white/10 transition-colors disabled:opacity-50" disabled>Prev</button>
             <button className="px-3 py-1 bg-white/5 rounded hover:bg-white/10 transition-colors">Next</button>
@@ -200,14 +278,18 @@ export default function AdminMembers() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
           <div className="w-full max-w-md glass rounded-2xl p-6 border border-white/10">
-      
+
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-white">
-                Add New Member
+                {editingMember ? 'Edit Member' : 'Add New Member'}
               </h2>
 
               <button
-                onClick={() => setShowModal(false)}
+                onClick={() => {
+                  setShowModal(false);
+                  setEditingMember(null);
+                  resetForm();
+                }}
                 className="text-gray-400 hover:text-white"
               >
                 ✕
@@ -238,7 +320,7 @@ export default function AdminMembers() {
 
               <input
                 type="password"
-                placeholder="Password"
+                placeholder={editingMember ? 'Leave blank to keep current password' : 'Password'}
                 value={formData.password}
                 onChange={(e) =>
                   setFormData({ ...formData, password: e.target.value })
@@ -263,6 +345,16 @@ export default function AdminMembers() {
 
               <input
                 type="text"
+                placeholder="Designation"
+                value={formData.designation}
+                onChange={(e) =>
+                  setFormData({ ...formData, designation: e.target.value })
+                }
+                className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-white"
+              />
+
+              <input
+                type="text"
                 placeholder="Team"
                 value={formData.team}
                 onChange={(e) =>
@@ -271,11 +363,22 @@ export default function AdminMembers() {
                 className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-white"
               />
 
+              <select
+                value={formData.status}
+                onChange={(e) =>
+                  setFormData({ ...formData, status: e.target.value })
+                }
+                className="w-full p-3 rounded-lg bg-white/5 border border-white/10 text-white"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+
               <button
-                onClick={handleCreateMember}
+                onClick={handleSubmit}
                 className="w-full py-3 bg-primary text-white rounded-lg font-semibold"
               >
-                Create Member
+                {editingMember ? 'Save Changes' : 'Create Member'}
               </button>
 
             </div>
@@ -283,10 +386,7 @@ export default function AdminMembers() {
         </div>
       )}
 
-
     </div>
-
-  
 
   );
 }
