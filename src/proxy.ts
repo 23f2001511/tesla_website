@@ -10,8 +10,6 @@ export function proxy(request: NextRequest) {
     if (!token) {
       return NextResponse.redirect(new URL('/login', request.url));
     }
-    // In a real app, decode token to verify role === 'Admin'
-    // This is just basic route protection
   }
 
   // Protect Dashboard Routes
