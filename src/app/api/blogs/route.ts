@@ -1,70 +1,31 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { Blog } from '@/models/Blog';
-import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
 
-const JWT_SECRET =
-  process.env.JWT_SECRET || 'fallback_secret_for_development_only';
-
-export async function POST(req: Request) {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get('search');
+    const category = searchParams.get('category');
+
     await connectDB();
 
-    const cookieStore = await cookies();
-    const token = cookieStore.get('token')?.value;
-
-    if (!token) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: 'Unauthorized'
-        },
-        { status: 401 }
-      );
+    const query: any = { status: 'Published' };
+    if (category && category !== 'all') {
+      query.category = category;
+    }
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: 'i' } },
+        { author: { $regex: search, $options: 'i' } },
+        { content: { $regex: search, $options: 'i' } },
+      ];
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as {
-      userId: string;
-      role: string;
-    };
-
-    const {
-      title,
-      content,
-      category,
-      tags,
-      coverImage
-    } = await req.json();
-
-    const blog = await Blog.create({
-      title,
-      content,
-      category,
-      tags,
-      coverImage,
-      author: decoded.userId,
-
-      status:
-        decoded.role === 'Admin'
-          ? 'Published'
-          : 'Pending'
-    });
-
-    return NextResponse.json({
-      success: true,
-      blog
-    });
-
-  } catch (error) {
-    console.error(error);
-
-    return NextResponse.json(
-      {
-        success: false,
-        message: 'Failed to create blog'
-      },
-      { status: 500 }
-    );
+    const blogs = await Blog.find(query).sort({ createdAt: -1 });
+    return NextResponse.json({ success: true, blogs });
+  } catch (error: any) {
+    console.error('Public Blogs API Error:', error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

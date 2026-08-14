@@ -1,13 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Menu, X, ArrowUpRight } from 'lucide-react';
+import { Menu, X, ArrowUpRight, ShieldCheck } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { useUser } from '@clerk/nextjs';
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
+  const { isSignedIn } = useUser();
+  const [announcement, setAnnouncement] = useState<any>(null);
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.settings?.announcement?.active) {
+          setAnnouncement(data.settings.announcement);
+        }
+      })
+      .catch((err) => console.warn('Announcement fetch notice:', err));
+  }, []);
 
   const navLinks = [
     { name: 'About', href: '/about' },
@@ -21,6 +35,20 @@ export function Navbar() {
 
   return (
     <header className="fixed top-0 w-full z-50 bg-ink border-b border-line">
+      {announcement && announcement.active && (
+        <div className="bg-acid text-acid-ink font-mono text-[11px] py-1.5 px-4 text-center tracking-wider font-bold border-b border-acid/20 flex items-center justify-center gap-2">
+          <span>{announcement.text}</span>
+          {announcement.link && (
+            <Link
+              href={announcement.link}
+              className="underline hover:opacity-80 inline-flex items-center"
+            >
+              Learn More →
+            </Link>
+          )}
+        </div>
+      )}
+
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-stretch justify-between h-16">
           {/* Logo */}
@@ -49,7 +77,7 @@ export function Navbar() {
                   href={link.href}
                   className={`flex items-center px-4 border-l border-line first:border-l-0 tag-mono transition-colors ${
                     active
-                      ? 'text-acid'
+                      ? 'text-acid bg-acid/5'
                       : 'text-ivory-2 hover:text-ivory hover:bg-ink-2'
                   }`}
                 >
@@ -61,12 +89,21 @@ export function Navbar() {
 
           {/* Desktop actions */}
           <div className="hidden lg:flex items-center">
-            <Link
-              href="/login"
-              className="tag-mono px-4 py-2 text-ivory-2 hover:text-ivory transition-colors border-l border-line"
-            >
-              Login
-            </Link>
+            {isSignedIn ? (
+              <Link
+                href="/admin"
+                className="tag-mono px-4 py-2 text-acid hover:text-ivory transition-colors border-l border-line flex items-center gap-1.5"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" /> Admin Panel
+              </Link>
+            ) : (
+              <Link
+                href="/admin"
+                className="tag-mono px-4 py-2 text-ivory-2 hover:text-acid transition-colors border-l border-line"
+              >
+                Admin
+              </Link>
+            )}
             <Link
               href="/contact"
               className="ml-0 flex items-center gap-1.5 px-5 h-16 bg-acid text-acid-ink font-mono text-[11px] tracking-[0.14em] uppercase font-bold hover:bg-ivory transition-colors"
@@ -107,11 +144,11 @@ export function Navbar() {
             })}
             <div className="flex gap-0">
               <Link
-                href="/login"
+                href="/admin"
                 onClick={() => setIsOpen(false)}
                 className="flex-1 px-6 py-4 text-center font-mono text-xs tracking-[0.14em] uppercase text-ivory-2 border-r border-line"
               >
-                Login
+                Admin Panel
               </Link>
               <Link
                 href="/contact"

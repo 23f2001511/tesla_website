@@ -1,24 +1,37 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ArrowUpRight } from 'lucide-react';
 
-const team = [
-  { id: 1, name: 'Aarav Mehta', role: 'President', category: 'Core', tag: 'PRS' },
-  { id: 2, name: 'Diya Sharma', role: 'Vice President', category: 'Core', tag: 'VPR' },
-  { id: 3, name: 'Rohan Verma', role: 'Technical Lead', category: 'Core', tag: 'TEC' },
-  { id: 4, name: 'Ishaan Kapoor', role: 'Operations Lead', category: 'Core', tag: 'OPS' },
-  { id: 5, name: 'Dr. S. Rao', role: 'Faculty Advisor', category: 'Faculty', tag: 'FAC' },
-  { id: 6, name: 'Ananya Singh', role: 'Design Lead', category: 'Executive', tag: 'DES' },
-  { id: 7, name: 'Kabir Anand', role: 'Events Lead', category: 'Executive', tag: 'EVT' },
-  { id: 8, name: 'Meera Iyer', role: 'Outreach Lead', category: 'Executive', tag: 'OUT' },
+const fallbackTeam = [
+  { id: '1', name: 'Aarav Mehta', role: 'President', category: 'Core', tag: 'PRS' },
+  { id: '2', name: 'Diya Sharma', role: 'Vice President', category: 'Core', tag: 'VPR' },
+  { id: '3', name: 'Rohan Verma', role: 'Technical Lead', category: 'Core', tag: 'TEC' },
+  { id: '4', name: 'Ishaan Kapoor', role: 'Operations Lead', category: 'Core', tag: 'OPS' },
+  { id: '5', name: 'Dr. S. Rao', role: 'Faculty Advisor', category: 'Faculty', tag: 'FAC' },
+  { id: '6', name: 'Ananya Singh', role: 'Design Lead', category: 'Executive', tag: 'DES' },
+  { id: '7', name: 'Kabir Anand', role: 'Events Lead', category: 'Executive', tag: 'EVT' },
+  { id: '8', name: 'Meera Iyer', role: 'Outreach Lead', category: 'Executive', tag: 'OUT' },
 ];
 
 const roles = ['Core', 'Executive', 'Faculty'];
 
 export default function TeamPage() {
   const [filter, setFilter] = useState('Core');
+  const [team, setTeam] = useState<any[]>(fallbackTeam);
+
+  useEffect(() => {
+    fetch('/api/team')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.members && data.members.length > 0) {
+          setTeam(data.members);
+        }
+      })
+      .catch((err) => console.warn('Using fallback team data:', err));
+  }, []);
+
   const filtered = team.filter((m) => m.category === filter);
 
   return (
@@ -44,7 +57,7 @@ export default function TeamPage() {
               onClick={() => setFilter(r)}
               className={`px-5 py-2 font-mono text-[11px] tracking-[0.14em] uppercase border transition-colors ${
                 filter === r
-                  ? 'border-acid text-acid'
+                  ? 'border-acid text-acid bg-acid/10'
                   : 'border-line text-muted hover:text-ivory hover:border-line-2'
               }`}
             >
@@ -57,7 +70,7 @@ export default function TeamPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-line border border-line">
           {filtered.map((m, i) => (
             <motion.div
-              key={m.id}
+              key={m._id || m.id || i}
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: i * 0.05 }}
@@ -65,16 +78,35 @@ export default function TeamPage() {
             >
               <div className="flex items-start justify-between mb-8">
                 <span className="font-mono text-[10px] text-muted">
-                  [{m.tag}]
+                  [{m.tag || 'MEM'}]
                 </span>
-                <ArrowUpRight className="w-4 h-4 text-muted group-hover:text-acid transition-colors" />
+                {m.linkedin ? (
+                  <a
+                    href={m.linkedin}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted group-hover:text-acid transition-colors"
+                  >
+                    <ArrowUpRight className="w-4 h-4" />
+                  </a>
+                ) : (
+                  <ArrowUpRight className="w-4 h-4 text-muted group-hover:text-acid transition-colors" />
+                )}
               </div>
 
-              {/* Monogram */}
-              <div className="w-20 h-20 border border-line-2 flex items-center justify-center mb-6 group-hover:border-acid group-hover:bg-acid transition-colors">
-                <span className="display text-3xl text-ivory group-hover:text-acid-ink transition-colors">
-                  {m.name.split(' ').map((n) => n[0]).join('')}
-                </span>
+              {/* Monogram or Avatar */}
+              <div className="w-20 h-20 border border-line-2 flex items-center justify-center mb-6 group-hover:border-acid group-hover:bg-acid transition-colors overflow-hidden">
+                {m.avatar ? (
+                  <img src={m.avatar} alt={m.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="display text-3xl text-ivory group-hover:text-acid-ink transition-colors">
+                    {m.name
+                      .split(' ')
+                      .map((n: string) => n[0])
+                      .join('')
+                      .slice(0, 2)}
+                  </span>
+                )}
               </div>
 
               <h3 className="display text-xl text-ivory leading-tight">
@@ -82,9 +114,20 @@ export default function TeamPage() {
               </h3>
               <div className="tag-mono-acid mt-2">{m.role.toUpperCase()}</div>
 
-              <div className="tag-mono mt-auto pt-4 group-hover:text-ivory-2 transition-colors">
-                VIEW PROFILE →
-              </div>
+              {m.linkedin ? (
+                <a
+                  href={m.linkedin}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="tag-mono mt-auto pt-4 group-hover:text-ivory-2 transition-colors flex items-center gap-1"
+                >
+                  VIEW PROFILE →
+                </a>
+              ) : (
+                <div className="tag-mono mt-auto pt-4 group-hover:text-ivory-2 transition-colors">
+                  CORE VOLUNTEER
+                </div>
+              )}
             </motion.div>
           ))}
         </div>

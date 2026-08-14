@@ -1,24 +1,61 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Download, Search } from 'lucide-react';
 
-const resources = [
-  { id: 1, title: 'Data Structures Notes', type: 'NOTES', subject: 'CS201', semester: 'Sem 3', downloads: 142 },
-  { id: 2, title: 'Operating Systems PYQ 2025', type: 'PYQ', subject: 'CS301', semester: 'Sem 5', downloads: 89 },
-  { id: 3, title: 'Database Management Lab Manual', type: 'LAB', subject: 'CS302', semester: 'Sem 5', downloads: 256 },
-  { id: 4, title: 'Machine Learning Basics', type: 'SLIDES', subject: 'CS401', semester: 'Sem 7', downloads: 67 },
+const fallbackResources = [
+  { id: '1', title: 'Data Structures Notes', type: 'NOTES', subject: 'CS201', semester: 'Sem 3', downloads: 142, fileUrl: '#' },
+  { id: '2', title: 'Operating Systems PYQ 2025', type: 'PYQ', subject: 'CS301', semester: 'Sem 5', downloads: 89, fileUrl: '#' },
+  { id: '3', title: 'Database Management Lab Manual', type: 'LAB', subject: 'CS302', semester: 'Sem 5', downloads: 256, fileUrl: '#' },
+  { id: '4', title: 'Machine Learning Basics', type: 'SLIDES', subject: 'CS401', semester: 'Sem 7', downloads: 67, fileUrl: '#' },
 ];
 
 export default function ResourcesPage() {
   const [semester, setSemester] = useState('All');
   const [search, setSearch] = useState('');
+  const [resources, setResources] = useState<any[]>(fallbackResources);
+
+  useEffect(() => {
+    fetch('/api/resources')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.resources && data.resources.length > 0) {
+          setResources(data.resources);
+        }
+      })
+      .catch((err) => console.warn('Using fallback resources:', err));
+  }, []);
+
+  const handleDownload = async (resource: any) => {
+    if (resource._id) {
+      try {
+        await fetch('/api/resources', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: resource._id }),
+        });
+        setResources((prev) =>
+          prev.map((r) => (r._id === resource._id ? { ...r, downloads: (r.downloads || 0) + 1 } : r))
+        );
+      } catch (err) {
+        console.error('Download tracker error:', err);
+      }
+    }
+
+    if (resource.fileUrl && resource.fileUrl !== '#') {
+      window.open(resource.fileUrl, '_blank');
+    } else {
+      alert(`Accessing: ${resource.title} (${resource.subject})`);
+    }
+  };
 
   const filtered = resources.filter(
     (r) =>
       (semester === 'All' || r.semester === semester) &&
-      r.title.toLowerCase().includes(search.toLowerCase())
+      (r.title.toLowerCase().includes(search.toLowerCase()) ||
+        r.subject.toLowerCase().includes(search.toLowerCase()) ||
+        r.type.toLowerCase().includes(search.toLowerCase()))
   );
 
   return (
@@ -49,13 +86,13 @@ export default function ResourcesPage() {
         {/* Filter */}
         <div className="flex flex-wrap items-center gap-2 mb-10">
           <span className="tag-mono mr-2">SEM —</span>
-          {['All', 'Sem 1', 'Sem 3', 'Sem 5', 'Sem 7'].map((sem) => (
+          {['All', 'Sem 1', 'Sem 2', 'Sem 3', 'Sem 4', 'Sem 5', 'Sem 6', 'Sem 7', 'Sem 8'].map((sem) => (
             <button
               key={sem}
               onClick={() => setSemester(sem)}
               className={`px-4 py-1.5 font-mono text-[11px] tracking-[0.14em] uppercase border transition-colors ${
                 semester === sem
-                  ? 'border-acid text-acid'
+                  ? 'border-acid text-acid bg-acid/10'
                   : 'border-line text-muted hover:text-ivory hover:border-line-2'
               }`}
             >
@@ -79,7 +116,7 @@ export default function ResourcesPage() {
             <tbody>
               {filtered.map((r, i) => (
                 <motion.tr
-                  key={r.id}
+                  key={r._id || r.id || i}
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: i * 0.04 }}
@@ -98,11 +135,14 @@ export default function ResourcesPage() {
                   <td className="px-5 py-4 font-mono text-xs text-muted">
                     {r.subject} / {r.semester.toUpperCase()}
                   </td>
-                  <td className="px-5 py-4 font-mono text-xs text-muted text-right">
-                    {r.downloads}
+                  <td className="px-5 py-4 font-mono text-xs text-acid text-right font-bold">
+                    {r.downloads ?? 0}
                   </td>
                   <td className="px-5 py-4 text-right">
-                    <button className="inline-flex items-center gap-2 px-3 py-1.5 border border-line font-mono text-[10px] tracking-wider uppercase text-ivory-2 hover:border-acid hover:text-acid transition-colors">
+                    <button
+                      onClick={() => handleDownload(r)}
+                      className="inline-flex items-center gap-2 px-3 py-1.5 border border-line font-mono text-[10px] tracking-wider uppercase text-ivory-2 hover:border-acid hover:text-acid hover:bg-acid/10 transition-colors"
+                    >
                       <Download className="w-3 h-3" /> Get
                     </button>
                   </td>

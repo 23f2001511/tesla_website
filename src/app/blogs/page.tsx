@@ -1,43 +1,60 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { ArrowUpRight, Search } from 'lucide-react';
 
-const blogs = [
+const fallbackBlogs = [
   {
-    id: 1,
+    id: '1',
     title: 'Building Scalable Web Applications with Next.js',
     category: 'WEB',
     author: 'Aarav Mehta',
     readTime: '5 MIN',
-    date: '20.05.26',
+    publishedDate: '20.05.26',
+    slug: 'building-scalable-web-apps',
   },
   {
-    id: 2,
+    id: '2',
     title: 'Getting Started with Machine Learning in Python',
     category: 'AI/ML',
     author: 'Diya Sharma',
     readTime: '8 MIN',
-    date: '15.05.26',
+    publishedDate: '15.05.26',
+    slug: 'getting-started-ml-python',
   },
   {
-    id: 3,
+    id: '3',
     title: 'Top 10 Cyber Security Practices for Developers',
     category: 'SECURITY',
     author: 'Rohan Verma',
     readTime: '4 MIN',
-    date: '10.05.26',
+    publishedDate: '10.05.26',
+    slug: 'top-10-cyber-security-practices',
   },
 ];
 
 export default function BlogsPage() {
   const [search, setSearch] = useState('');
+  const [blogs, setBlogs] = useState<any[]>(fallbackBlogs);
+
+  useEffect(() => {
+    fetch('/api/blogs')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.blogs && data.blogs.length > 0) {
+          setBlogs(data.blogs);
+        }
+      })
+      .catch((err) => console.warn('Using fallback blogs:', err));
+  }, []);
 
   const filtered = blogs.filter(
     (b) =>
       b.title.toLowerCase().includes(search.toLowerCase()) ||
-      b.author.toLowerCase().includes(search.toLowerCase())
+      b.author.toLowerCase().includes(search.toLowerCase()) ||
+      b.category.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -68,12 +85,9 @@ export default function BlogsPage() {
         {/* List */}
         <div className="border border-line">
           {filtered.map((b, i) => (
-            <motion.a
-              href="#"
-              key={b.id}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: i * 0.05 }}
+            <Link
+              href={`/blogs/${b._id || b.slug || b.id}`}
+              key={b._id || b.id || i}
               className="grid grid-cols-12 items-center border-b border-line last:border-b-0 hover:bg-ink-2 transition-colors group cursor-pointer"
             >
               <div className="col-span-2 sm:col-span-1 border-r border-line px-4 py-8 text-center">
@@ -89,12 +103,14 @@ export default function BlogsPage() {
               </div>
               <div className="hidden sm:block sm:col-span-3 border-l border-line px-6 py-8">
                 <div className="tag-mono">{b.author.toUpperCase()}</div>
-                <div className="tag-mono mt-1">{b.date} — {b.readTime}</div>
+                <div className="tag-mono mt-1">
+                  {b.publishedDate || 'RECENT'} — {b.readTime || '5 MIN'}
+                </div>
               </div>
               <div className="hidden sm:flex sm:col-span-1 border-l border-line px-4 py-8 items-center justify-center">
                 <ArrowUpRight className="w-5 h-5 text-muted group-hover:text-acid group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
               </div>
-            </motion.a>
+            </Link>
           ))}
           {filtered.length === 0 && (
             <div className="py-20 text-center tag-mono">NO LOGS FOUND</div>

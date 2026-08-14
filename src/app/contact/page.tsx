@@ -2,17 +2,34 @@
 
 import { motion } from 'framer-motion';
 import { ArrowUpRight } from 'lucide-react';
-import { useState } from 'react';
-
-const channels = [
-  { k: 'EMAIL', v: 'teslaclub@college.edu', href: 'mailto:teslaclub@college.edu' },
-  { k: 'LOCATION', v: 'CSE Block, Campus', href: '#' },
-  { k: 'DISCORD', v: 'discord.gg/tesla', href: '#' },
-  { k: 'HOURS', v: 'Lab open 16:00–21:00', href: '#' },
-];
+import { useState, useEffect } from 'react';
 
 export default function ContactPage() {
   const [sent, setSent] = useState(false);
+  const [settings, setSettings] = useState<any>({
+    contactEmail: 'teslaclub@college.edu',
+    location: 'CSE Block, Campus',
+    discordUrl: 'https://discord.gg/tesla',
+    labHours: 'Lab open 16:00–21:00',
+  });
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.settings) {
+          setSettings(data.settings);
+        }
+      })
+      .catch((err) => console.warn('Using fallback contact settings:', err));
+  }, []);
+
+  const channels = [
+    { k: 'EMAIL', v: settings.contactEmail, href: `mailto:${settings.contactEmail}` },
+    { k: 'LOCATION', v: settings.location, href: '#' },
+    { k: 'DISCORD', v: settings.discordUrl.replace('https://', ''), href: settings.discordUrl },
+    { k: 'HOURS', v: settings.labHours, href: '#' },
+  ];
 
   return (
     <div className="bg-ink min-h-screen">
@@ -39,6 +56,8 @@ export default function ContactPage() {
                 <a
                   key={c.k}
                   href={c.href}
+                  target={c.href.startsWith('http') ? '_blank' : undefined}
+                  rel={c.href.startsWith('http') ? 'noopener noreferrer' : undefined}
                   className={`flex items-center justify-between px-5 py-5 group hover:bg-ink-2 transition-colors ${
                     i !== 0 ? 'border-t border-line' : ''
                   }`}
@@ -123,7 +142,7 @@ export default function ContactPage() {
               </div>
 
               <button type="submit" className="btn-acid self-start">
-                {sent ? 'Message sent — we\'ll reply soon' : 'Send message'}
+                {sent ? "Message sent — we'll reply soon" : 'Send message'}
                 <ArrowUpRight className="w-4 h-4" />
               </button>
             </form>

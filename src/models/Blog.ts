@@ -1,15 +1,43 @@
-import mongoose from 'mongoose';
+import mongoose, { Schema, Document } from 'mongoose';
 
-const blogSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  content: { type: String, required: true },
-  author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  category: { type: String, required: true },
-  coverImage: { type: String },
-  status: { type: String, enum: ['Draft', 'Pending', 'Published', 'Rejected'], default: 'Draft' },
-  likes: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
-  views: { type: Number, default: 0 },
-  tags: [{ type: String }]
-}, { timestamps: true });
+export interface IBlog extends Document {
+  title: string;
+  slug: string;
+  category: string;
+  author: string;
+  authorRole: string;
+  readTime: string;
+  content: string;
+  coverImage?: string;
+  tags: string[];
+  status: 'Draft' | 'Published';
+  publishedDate: string;
+  views: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-export const Blog = mongoose.models.Blog || mongoose.model('Blog', blogSchema);
+const BlogSchema = new Schema<IBlog>(
+  {
+    title: { type: String, required: true, trim: true },
+    slug: { type: String, trim: true, lowercase: true },
+    category: { type: String, required: true, default: 'TECH' },
+    author: { type: String, required: true, default: 'Tesla Team' },
+    authorRole: { type: String, default: 'Member' },
+    readTime: { type: String, default: '5 MIN' },
+    content: { type: String, required: true },
+    coverImage: { type: String, default: '' },
+    tags: [{ type: String }],
+    status: {
+      type: String,
+      enum: ['Draft', 'Published'],
+      default: 'Published',
+    },
+    publishedDate: { type: String, default: '' },
+    views: { type: Number, default: 0 },
+  },
+  { timestamps: true }
+);
+
+export const Blog =
+  mongoose.models.Blog || mongoose.model<IBlog>('Blog', BlogSchema);

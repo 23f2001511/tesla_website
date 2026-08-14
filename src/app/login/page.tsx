@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowUpRight, ShieldCheck, Lock } from 'lucide-react';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -32,30 +32,10 @@ export default function LoginPage() {
         return;
       }
 
-      switch (data.role) {
-        case 'Admin':
-          router.push('/admin');
-          break;
-        case 'PI':
-          router.push('/pi');
-          break;
-        case 'President':
-          router.push('/president');
-          break;
-        case 'OfficeBearer':
-          router.push('/office-bearer');
-          break;
-        case 'TeamLeader':
-          router.push('/team-leader');
-          break;
-        case 'TeamMember':
-          router.push('/dashboard/profile');
-          break;
-        case 'Alumni':
-          router.push('/alumni');
-          break;
-        default:
-          router.push('/');
+      if (data.role === 'Admin') {
+        router.push('/admin');
+      } else {
+        router.push('/');
       }
     } catch (err) {
       console.error(err);
@@ -71,12 +51,12 @@ export default function LoginPage() {
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md"
+        className="w-full max-w-md space-y-4"
       >
         {/* Terminal chrome */}
         <div className="border border-line corner-marks bg-ink-2">
           <div className="border-b border-line px-4 py-2.5 flex items-center justify-between bg-ink">
-            <span className="tag-mono">AUTH.SH — MEMBER LOGIN</span>
+            <span className="tag-mono">AUTH.SH — GATEWAY</span>
             <span className="flex gap-1.5">
               <span className="w-2 h-2 border border-line-2" />
               <span className="w-2 h-2 border border-line-2" />
@@ -86,9 +66,24 @@ export default function LoginPage() {
 
           <div className="p-8 sm:p-10">
             <div className="tag-mono-acid mb-4">// ACCESS</div>
-            <h1 className="display text-4xl text-ivory mb-8">
+            <h1 className="display text-4xl text-ivory mb-6">
               SIGN IN<span className="text-acid">_</span>
             </h1>
+
+            {/* Clerk OAuth Fast Access Button */}
+            <Link
+              href="/admin"
+              className="w-full py-3.5 mb-6 bg-acid text-acid-ink font-mono text-xs uppercase tracking-widest font-bold flex items-center justify-center gap-2 hover:bg-ivory transition-colors border border-acid"
+            >
+              <ShieldCheck className="w-4 h-4" /> Admin Access (Clerk OAuth) →
+            </Link>
+
+            <div className="relative flex items-center justify-center mb-6">
+              <div className="border-t border-line w-full" />
+              <span className="bg-ink-2 px-3 tag-mono text-[10px] text-muted shrink-0">
+                OR LOCAL CREDENTIALS
+              </span>
+            </div>
 
             <form
               className="space-y-5"
@@ -135,9 +130,9 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="btn-acid w-full justify-center"
+                className="btn-brut w-full justify-center"
               >
-                {loading ? 'AUTHENTICATING…' : 'SIGN IN'}
+                {loading ? 'AUTHENTICATING…' : 'SIGN IN (EMAIL/PASS)'}
                 <ArrowUpRight className="w-4 h-4" />
               </button>
             </form>
@@ -152,7 +147,7 @@ export default function LoginPage() {
         </div>
 
         <div className="tag-mono mt-4 text-center">
-          MEMBERS-ONLY AREA — UNAUTHORIZED ACCESS LOGGED
+          PROTECTED TERMINAL — UNAUTHORIZED ATTEMPTS ARE LOGGED
         </div>
       </motion.div>
     </div>

@@ -1,100 +1,288 @@
 'use client';
 
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { Users, Calendar, FileText, Activity, TrendingUp, TrendingDown } from 'lucide-react';
+import {
+  Users,
+  Calendar,
+  Zap,
+  Image as ImageIcon,
+  FileText,
+  BookOpen,
+  Trophy,
+  GraduationCap,
+  Database,
+  RefreshCw,
+  ArrowUpRight,
+  ShieldCheck,
+  CheckCircle2,
+  AlertCircle,
+} from 'lucide-react';
 
-export default function AdminOverview() {
-  const stats = [
-    { title: 'Total Members', value: '1,248', change: '+12%', trend: 'up', icon: Users, color: 'text-blue-400' },
-    { title: 'Active Events', value: '4', change: 'Same', trend: 'neutral', icon: Calendar, color: 'text-purple-400' },
-    { title: 'Pending Blogs', value: '12', change: '+5', trend: 'up', icon: FileText, color: 'text-orange-400' },
-    { title: 'Daily Visits', value: '3,422', change: '-2%', trend: 'down', icon: Activity, color: 'text-green-400' },
-  ];
+export default function AdminOverviewPage() {
+  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
+  const [seedSuccess, setSeedSuccess] = useState<string | null>(null);
 
-  const recentActivities = [
-    { user: 'Aarav Mehta', action: 'submitted a new blog', time: '2 hours ago', status: 'pending' },
-    { user: 'Diya Sharma', action: 'registered for AI Workshop', time: '5 hours ago', status: 'success' },
-    { user: 'System', action: 'Server backup completed', time: '12 hours ago', status: 'info' },
-    { user: 'Rohan Verma', action: 'updated event details', time: '1 day ago', status: 'warning' },
+  const fetchStats = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/admin/stats');
+      const data = await res.json();
+      if (data.success) {
+        setStats(data);
+      }
+    } catch (err) {
+      console.error('Stats fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const handleSeedDatabase = async () => {
+    if (!confirm('This will seed/reset initial club data for all modules. Proceed?')) {
+      return;
+    }
+
+    try {
+      setSeeding(true);
+      setSeedSuccess(null);
+      const res = await fetch('/api/admin/seed', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        setSeedSuccess('Database populated with starter data successfully!');
+        fetchStats();
+      } else {
+        alert('Seeding failed: ' + (data.error || data.message));
+      }
+    } catch (err: any) {
+      alert('Seeding error: ' + err.message);
+    } finally {
+      setSeeding(false);
+      setTimeout(() => setSeedSuccess(null), 6000);
+    }
+  };
+
+  const statCards = [
+    {
+      title: 'Team Roster',
+      value: stats?.counts?.team ?? '-',
+      href: '/admin/team',
+      icon: Users,
+      tag: 'ROSTER',
+    },
+    {
+      title: 'Events & Sessions',
+      value: stats?.counts?.events ?? '-',
+      sub: `${stats?.counts?.upcomingEvents ?? 0} upcoming`,
+      href: '/admin/events',
+      icon: Calendar,
+      tag: 'SCHEDULE',
+    },
+    {
+      title: 'Tech Logs & Blogs',
+      value: stats?.counts?.blogs ?? '-',
+      href: '/admin/blogs',
+      icon: FileText,
+      tag: 'WRITING',
+    },
+    {
+      title: 'Photo Gallery',
+      value: stats?.counts?.gallery ?? '-',
+      href: '/admin/gallery',
+      icon: ImageIcon,
+      tag: 'MEDIA',
+    },
+    {
+      title: 'Resource Vault',
+      value: stats?.counts?.resources ?? '-',
+      href: '/admin/resources',
+      icon: BookOpen,
+      tag: 'VAULT',
+    },
+    {
+      title: 'Trophy Cabinet',
+      value: stats?.counts?.achievements ?? '-',
+      href: '/admin/achievements',
+      icon: Trophy,
+      tag: 'WINS',
+    },
+    {
+      title: 'Alumni Network',
+      value: stats?.counts?.alumni ?? '-',
+      href: '/admin/alumni',
+      icon: GraduationCap,
+      tag: 'NETWORK',
+    },
+    {
+      title: 'Flagship Event',
+      value: "HACK '26",
+      href: '/admin/flagship',
+      icon: Zap,
+      tag: 'FLAGSHIP',
+    },
   ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold text-white mb-2">Dashboard Overview</h1>
-        <p className="text-gray-400">Welcome back, Admin. Here is what's happening today.</p>
-      </div>
+    <div className="max-w-7xl mx-auto space-y-8">
+      {/* Header with Seed Button */}
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-line">
+        <div>
+          <div className="tag-mono-acid mb-2">// COMMAND CENTER</div>
+          <h1 className="display text-4xl sm:text-5xl text-ivory">SYSTEM OVERVIEW</h1>
+          <p className="text-sm text-ivory-2 mt-2 max-w-lg">
+            Manage real-time variable club content across team rosters, events, hackathon tracks, vault files, and site links.
+          </p>
+        </div>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, idx) => (
-          <motion.div 
-            key={idx}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.1 }}
-            className="glass p-6 rounded-2xl flex flex-col gap-4 border-white/5"
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={fetchStats}
+            disabled={loading}
+            className="btn-brut text-xs py-2.5 px-4"
           >
-            <div className="flex justify-between items-start">
-              <div className={`p-3 rounded-xl bg-white/5 ${stat.color}`}>
-                <stat.icon className="w-6 h-6" />
-              </div>
-              <div className={`flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${
-                stat.trend === 'up' ? 'text-green-400 bg-green-400/10' : 
-                stat.trend === 'down' ? 'text-red-400 bg-red-400/10' : 
-                'text-gray-400 bg-gray-400/10'
-              }`}>
-                {stat.trend === 'up' ? <TrendingUp className="w-3 h-3" /> : stat.trend === 'down' ? <TrendingDown className="w-3 h-3" /> : null}
-                {stat.change}
-              </div>
-            </div>
-            
-            <div>
-              <div className="text-3xl font-bold text-white">{stat.value}</div>
-              <div className="text-sm text-gray-400 mt-1">{stat.title}</div>
-            </div>
-          </motion.div>
-        ))}
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh
+          </button>
+          <button
+            onClick={handleSeedDatabase}
+            disabled={seeding}
+            className="btn-acid text-xs py-2.5 px-4"
+          >
+            <Database className="w-3.5 h-3.5" />
+            {seeding ? 'SEEDING DATABASE…' : 'INITIALIZE / SEED DATA'}
+          </button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Chart placeholder */}
-        <div className="lg:col-span-2 glass rounded-2xl p-6 border-white/5 min-h-[400px] flex flex-col">
-          <h2 className="text-xl font-bold text-white mb-6">Site Traffic & Activity</h2>
-          <div className="flex-1 bg-white/5 rounded-xl border border-dashed border-white/10 flex items-center justify-center">
-            <span className="text-gray-500 font-medium">Analytics Chart (Integration pending)</span>
+      {seedSuccess && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-acid/10 border border-acid p-4 flex items-center gap-3 text-acid font-mono text-xs"
+        >
+          <CheckCircle2 className="w-5 h-5 shrink-0" />
+          <span>{seedSuccess}</span>
+        </motion.div>
+      )}
+
+      {/* Security & System Info Banner */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-line border border-line">
+        <div className="bg-ink-2 p-4 flex items-center gap-3">
+          <div className="p-2.5 bg-ink border border-line text-acid">
+            <Database className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="tag-mono text-[10px]">DATABASE STATUS</div>
+            <div className="font-mono text-xs text-ivory font-bold flex items-center gap-1.5 mt-0.5">
+              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" /> MongoDB Atlas / Connected
+            </div>
           </div>
         </div>
 
-        {/* Activity Feed */}
-        <div className="glass rounded-2xl p-6 border-white/5 flex flex-col">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-xl font-bold text-white">Recent Activity</h2>
-            <button className="text-sm text-primary hover:underline">View All</button>
+        <div className="bg-ink-2 p-4 flex items-center gap-3">
+          <div className="p-2.5 bg-ink border border-line text-acid">
+            <ShieldCheck className="w-5 h-5" />
           </div>
-          
-          <div className="flex-1 space-y-6">
-            {recentActivities.map((activity, idx) => (
-              <div key={idx} className="flex gap-4 relative">
-                {idx !== recentActivities.length - 1 && (
-                  <div className="absolute left-4 top-10 bottom-[-24px] w-px bg-white/10" />
-                )}
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 border-2 border-background z-10 ${
-                  activity.status === 'success' ? 'bg-green-500' :
-                  activity.status === 'pending' ? 'bg-orange-500' :
-                  activity.status === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
-                }`}>
-                  <Activity className="w-4 h-4 text-white" />
+          <div>
+            <div className="tag-mono text-[10px]">ADMIN GATEWAY</div>
+            <div className="font-mono text-xs text-ivory font-bold flex items-center gap-1.5 mt-0.5">
+              <span className="w-2 h-2 rounded-full bg-acid" /> Clerk OAuth + .env Whitelist
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-ink-2 p-4 flex items-center gap-3">
+          <div className="p-2.5 bg-ink border border-line text-acid">
+            <Zap className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="tag-mono text-[10px]">CURRENT USER</div>
+            <div className="font-mono text-xs text-acid font-bold truncate mt-0.5 max-w-[200px]">
+              {stats?.user?.email || 'Administrator'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Metric Cards Grid */}
+      <div>
+        <div className="tag-mono-acid mb-4">// CONTENT MODULES</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-line border border-line">
+          {statCards.map((card, idx) => (
+            <Link
+              key={card.title}
+              href={card.href}
+              className="group bg-ink hover:bg-ink-2 transition-all p-6 flex flex-col justify-between min-h-[160px]"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <card.icon className="w-4 h-4 text-muted group-hover:text-acid transition-colors" />
+                  <span className="tag-mono text-[10px]">[{card.tag}]</span>
                 </div>
-                <div className="flex flex-col pt-1">
-                  <p className="text-sm text-gray-300">
-                    <span className="font-bold text-white">{activity.user}</span> {activity.action}
-                  </p>
-                  <span className="text-xs text-gray-500 mt-1">{activity.time}</span>
+                <ArrowUpRight className="w-4 h-4 text-muted group-hover:text-acid group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+              </div>
+
+              <div className="mt-4">
+                <div className="display text-4xl text-ivory group-hover:text-acid transition-colors">
+                  {card.value}
+                </div>
+                <div className="text-xs text-ivory-2 mt-1 font-mono flex items-center justify-between">
+                  <span>{card.title}</span>
+                  {card.sub && <span className="tag-mono-acid text-[10px]">{card.sub}</span>}
                 </div>
               </div>
-            ))}
-          </div>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      {/* Quick Action Hub */}
+      <div className="border border-line corner-marks bg-ink-2 p-6 sm:p-8">
+        <div className="tag-mono-acid mb-3">// QUICK NAVIGATION</div>
+        <h3 className="display text-2xl text-ivory mb-6">DIRECT DATA EDITORS</h3>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          <Link
+            href="/admin/team"
+            className="p-4 bg-ink border border-line hover:border-acid text-center transition-colors group"
+          >
+            <Users className="w-5 h-5 text-muted group-hover:text-acid mx-auto mb-2" />
+            <div className="tag-mono text-[10px] text-ivory">Manage Team</div>
+          </Link>
+          <Link
+            href="/admin/events"
+            className="p-4 bg-ink border border-line hover:border-acid text-center transition-colors group"
+          >
+            <Calendar className="w-5 h-5 text-muted group-hover:text-acid mx-auto mb-2" />
+            <div className="tag-mono text-[10px] text-ivory">Manage Events</div>
+          </Link>
+          <Link
+            href="/admin/flagship"
+            className="p-4 bg-ink border border-line hover:border-acid text-center transition-colors group"
+          >
+            <Zap className="w-5 h-5 text-muted group-hover:text-acid mx-auto mb-2" />
+            <div className="tag-mono text-[10px] text-ivory">Hack-Tesla '26</div>
+          </Link>
+          <Link
+            href="/admin/blogs"
+            className="p-4 bg-ink border border-line hover:border-acid text-center transition-colors group"
+          >
+            <FileText className="w-5 h-5 text-muted group-hover:text-acid mx-auto mb-2" />
+            <div className="tag-mono text-[10px] text-ivory">Write Article</div>
+          </Link>
+          <Link
+            href="/admin/settings"
+            className="p-4 bg-ink border border-line hover:border-acid text-center transition-colors group"
+          >
+            <Database className="w-5 h-5 text-muted group-hover:text-acid mx-auto mb-2" />
+            <div className="tag-mono text-[10px] text-ivory">Site Settings</div>
+          </Link>
         </div>
       </div>
     </div>

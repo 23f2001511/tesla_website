@@ -1,44 +1,40 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { ArrowUpRight, ChevronLeft, ChevronRight, Check } from 'lucide-react';
 
-const events = [
+const fallbackUpcoming = [
   {
-    id: 1,
+    id: '1',
     title: 'Full-Stack Web Dev Bootcamp',
     category: 'BOOTCAMP',
-    day: '28',
-    month: 'OCT',
+    date: '28 MAY 2026',
     time: '10:00 — 16:00',
     venue: 'Lab 1, CSE Block',
   },
   {
-    id: 2,
-    title: 'Data Structures & Algos in Python',
-    category: 'WORKSHOP',
-    day: '05',
-    month: 'NOV',
-    time: '11:00 — 13:00',
-    venue: 'Seminar Hall A',
+    id: '2',
+    title: 'AI/ML Hackathon Prep & Sprint',
+    category: 'HACKATHON',
+    date: '15 JUN 2026',
+    time: '09:00 — 18:00',
+    venue: 'Auditorium',
   },
   {
-    id: 3,
-    title: 'Autonomous Robotics Workshop',
+    id: '3',
+    title: 'Autonomous Robotics Lab',
     category: 'HANDS-ON LAB',
-    day: '12',
-    month: 'NOV',
+    date: '12 JUL 2026',
     time: '14:00 — 17:00',
     venue: 'Robotics Lab 3',
   },
   {
-    id: 4,
-    title: 'Industry Talk: Zero Trust Security',
+    id: '4',
+    title: 'Zero Trust Security Architecture',
     category: 'TECH TALK',
-    day: '18',
-    month: 'NOV',
+    date: '18 AUG 2026',
     time: '15:00 — 17:00',
     venue: 'Main Auditorium',
   },
@@ -46,7 +42,19 @@ const events = [
 
 export function UpcomingEventsPreview() {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [rsvpMap, setRsvpMap] = useState<Record<number, boolean>>({});
+  const [rsvpMap, setRsvpMap] = useState<Record<string, boolean>>({});
+  const [events, setEvents] = useState<any[]>(fallbackUpcoming);
+
+  useEffect(() => {
+    fetch('/api/events?status=upcoming')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.events && data.events.length > 0) {
+          setEvents(data.events);
+        }
+      })
+      .catch((err) => console.warn('Using fallback upcoming events:', err));
+  }, []);
 
   const scroll = (dir: 'left' | 'right') => {
     scrollRef.current?.scrollBy({ left: dir === 'left' ? -340 : 340, behavior: 'smooth' });
@@ -90,10 +98,15 @@ export function UpcomingEventsPreview() {
           className="flex gap-px bg-line border border-line overflow-x-auto hide-scrollbar snap-x"
         >
           {events.map((e, i) => {
-            const rsvp = rsvpMap[e.id];
+            const key = e._id || e.id || i;
+            const rsvp = rsvpMap[key];
+            const dateParts = (e.date || '').split(' ');
+            const day = dateParts[0] || '28';
+            const month = dateParts[1] || 'OCT';
+
             return (
               <motion.div
-                key={e.id}
+                key={key}
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
@@ -102,10 +115,10 @@ export function UpcomingEventsPreview() {
               >
                 <div className="flex items-stretch justify-between border-b border-line">
                   <div className="p-5">
-                    <div className="display text-4xl text-ivory">{e.day}</div>
-                    <div className="tag-mono mt-1">{e.month}</div>
+                    <div className="display text-4xl text-ivory">{day}</div>
+                    <div className="tag-mono mt-1">{month}</div>
                   </div>
-                  <div className="tag-mono-acid border-l border-line px-4 flex items-center">
+                  <div className="tag-mono-acid border-l border-line px-4 flex items-center uppercase">
                     {e.category}
                   </div>
                 </div>
@@ -119,7 +132,7 @@ export function UpcomingEventsPreview() {
                     <div>WHERE — {e.venue}</div>
                   </div>
                   <button
-                    onClick={() => setRsvpMap((p) => ({ ...p, [e.id]: !p[e.id] }))}
+                    onClick={() => setRsvpMap((p) => ({ ...p, [key]: !p[key] }))}
                     className={`mt-auto w-full py-3 font-mono text-[11px] tracking-[0.14em] uppercase font-bold border transition-colors flex items-center justify-center gap-2 ${
                       rsvp
                         ? 'bg-acid text-acid-ink border-acid'

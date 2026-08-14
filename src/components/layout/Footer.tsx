@@ -1,12 +1,30 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowUpRight, Check } from 'lucide-react';
 
 export function Footer() {
   const [email, setEmail] = useState('');
   const [subscribed, setSubscribed] = useState(false);
+  const [settings, setSettings] = useState<any>({
+    location: 'DEPT. OF CSE, CAMPUS BLOCK A',
+    githubUrl: 'https://github.com',
+    linkedinUrl: 'https://linkedin.com',
+    instagramUrl: 'https://instagram.com',
+    twitterUrl: 'https://twitter.com',
+  });
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.settings) {
+          setSettings(data.settings);
+        }
+      })
+      .catch((err) => console.warn('Footer settings notice:', err));
+  }, []);
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,17 +54,17 @@ export function Footer() {
         ['Resources', '/resources'],
         ['Alumni', '/alumni'],
         ['Gallery', '/gallery'],
-        ['Dashboard', '/dashboard'],
+        ['Admin Control', '/admin'],
         ['Contact', '/contact'],
       ],
     },
     {
       heading: 'External',
       links: [
-        ['GitHub', 'https://github.com'],
-        ['LinkedIn', 'https://linkedin.com'],
-        ['Instagram', 'https://instagram.com'],
-        ['X / Twitter', 'https://twitter.com'],
+        ['GitHub', settings.githubUrl || 'https://github.com'],
+        ['LinkedIn', settings.linkedinUrl || 'https://linkedin.com'],
+        ['Instagram', settings.instagramUrl || 'https://instagram.com'],
+        ['X / Twitter', settings.twitterUrl || 'https://twitter.com'],
       ],
     },
   ];
@@ -75,7 +93,7 @@ export function Footer() {
             hardware, research — and we teach by sharing. No gatekeeping, no
             fluff.
           </p>
-          <div className="tag-mono">DEPT. OF CSE, CAMPUS BLOCK A</div>
+          <div className="tag-mono">{settings.location || 'DEPT. OF CSE, CAMPUS BLOCK A'}</div>
         </div>
 
         {/* Link columns */}
@@ -136,7 +154,7 @@ export function Footer() {
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-5 flex flex-col sm:flex-row justify-between items-center gap-3 tag-mono">
           <span>© {new Date().getFullYear()} TESLA TECHNICAL CLUB</span>
           <span>BUILT BY STUDENTS — FOR STUDENTS</span>
-          <span className="text-acid">v3.0 / BRUTAL</span>
+          <span className="text-acid">v3.0 / FULL-STACK</span>
         </div>
       </div>
     </footer>
