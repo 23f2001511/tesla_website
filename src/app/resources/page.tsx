@@ -1,160 +1,265 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { useState, useEffect } from 'react';
-import { Download, Search } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Download, FileText, Search } from 'lucide-react';
+import { useApi } from '@/lib/api';
+import { EmptyState, ErrorState } from '@/components/ui/States';
+import { ScrollReveal, StaggerGroup, StaggerItem } from '@/components/ui/ScrollReveal';
 
-const fallbackResources = [
-  { id: '1', title: 'Data Structures Notes', type: 'NOTES', subject: 'CS201', semester: 'Sem 3', downloads: 142, fileUrl: '#' },
-  { id: '2', title: 'Operating Systems PYQ 2025', type: 'PYQ', subject: 'CS301', semester: 'Sem 5', downloads: 89, fileUrl: '#' },
-  { id: '3', title: 'Database Management Lab Manual', type: 'LAB', subject: 'CS302', semester: 'Sem 5', downloads: 256, fileUrl: '#' },
-  { id: '4', title: 'Machine Learning Basics', type: 'SLIDES', subject: 'CS401', semester: 'Sem 7', downloads: 67, fileUrl: '#' },
-];
+const PAGE_SIZE = 5;
+const SEMESTERS = ['All', '1', '2', '3', '4', '5', '6', '7', '8'];
+const TYPES = ['All', 'Note', 'PYQ'] as const;
+
+const pill = (active: boolean) =>
+  `px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-[0.12em] border transition-colors ${
+    active ? 'bg-acid text-acid-ink border-acid font-bold' : 'border-line text-ivory-2 hover:border-acid hover:text-acid'
+  }`;
+
+interface ResourceFileItem {
+  _id: string;
+  title: string;
+  fileUrl: string;
+  type: 'Note' | 'PYQ';
+  views?: number;
+  downloads?: number;
+}
+
+interface SubjectItem {
+  _id: string;
+  subjectName: string;
+  subjectCode?: string;
+  department: string;
+  semester: number;
+  files: ResourceFileItem[];
+}
 
 export default function ResourcesPage() {
+  // Server-side filters (refetch via SWR)
+  const [department, setDepartment] = useState('All');
   const [semester, setSemester] = useState('All');
-  const [search, setSearch] = useState('');
-  const [resources, setResources] = useState<any[]>(fallbackResources);
+  // Client-side filters (instant)
+  const [type, setType] = useState<(typeof TYPES)[number]>('All');
+  const [subjectQuery, setSubjectQuery] = useState('');
+  const [visible, setVisible] = useState(PAGE_SIZE);
 
-  useEffect(() => {
-    fetch('/api/resources')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.resources && data.resources.length > 0) {
-          setResources(data.resources);
+  const query = new URLSearchParams();
+  if (department !== 'All') query.set('department', department);
+  if (semester !== 'All') query.set('semester', semester);
+
+  const { data, error, isLoading, mutate } = useApi<{
+    resources: SubjectItem[];
+    departments: string[];
+  }>(`/api/resources?${query.toString()}`);
+
+  const departments = data?.departments || [];
+  const allSubjects = data?.resources || [];
+
+  // Apply type + subject-search filters client-side, per file.
+  const filtered = useMemo(() => {
+    const q = subjectQuery.trim().toLowerCase();
+    return allSubjects
+      .map((r) => {
+        if (q && !`${r.subjectName} ${r.subjectCode || ''}`.toLowerCase().includes(q)) {
+          return null;
         }
+        const files =
+          type === 'All' ? r.files || [] : (r.files || []).filter((f) => f.type === type);
+        return { ...r, files };
       })
-      .catch((err) => console.warn('Using fallback resources:', err));
-  }, []);
+      .filter((r): r is SubjectItem => Boolean(r && r.files.length > 0));
+  }, [allSubjects, type, subjectQuery]);
 
-  const handleDownload = async (resource: any) => {
-    if (resource._id) {
-      try {
-        await fetch('/api/resources', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: resource._id }),
-        });
-        setResources((prev) =>
-          prev.map((r) => (r._id === resource._id ? { ...r, downloads: (r.downloads || 0) + 1 } : r))
-        );
-      } catch (err) {
-        console.error('Download tracker error:', err);
-      }
-    }
-
-    if (resource.fileUrl && resource.fileUrl !== '#') {
-      window.open(resource.fileUrl, '_blank');
-    } else {
-      alert(`Accessing: ${resource.title} (${resource.subject})`);
-    }
-  };
-
-  const filtered = resources.filter(
-    (r) =>
-      (semester === 'All' || r.semester === semester) &&
-      (r.title.toLowerCase().includes(search.toLowerCase()) ||
-        r.subject.toLowerCase().includes(search.toLowerCase()) ||
-        r.type.toLowerCase().includes(search.toLowerCase()))
+  const shown = filtered.slice(0, visible);
+  const totalFiles = useMemo(
+    () => filtered.reduce((n: number, r) => n + r.files.length, 0),
+    [filtered]
   );
+
+  // Reset paging whenever any filter changes. Derived during render (the
+  // "storing information from previous renders" pattern) so no effect runs.
+  const filterKey = `${department}|${semester}|${type}|${subjectQuery}`;
+  const [pagingKey, setPagingKey] = useState(filterKey);
+  if (pagingKey !== filterKey) {
+    setPagingKey(filterKey);
+    setVisible(PAGE_SIZE);
+  }
+
+  const hasFilters =
+    department !== 'All' || semester !== 'All' || type !== 'All' || subjectQuery.trim() !== '';
 
   return (
     <div className="bg-ink min-h-screen">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 sm:pt-24">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-10 mb-10 border-b border-line">
-          <div>
-            <div className="tag-mono-acid mb-3">// VAULT</div>
-            <h1 className="display text-5xl sm:text-7xl text-ivory">RESOURCES</h1>
-            <p className="text-ivory-2 mt-4 max-w-md text-sm leading-relaxed">
-              Notes, PYQs and lab manuals — curated by seniors, maintained by
-              the club. Free for everyone.
-            </p>
-          </div>
-          <div className="relative w-full md:w-80">
-            <input
-              type="text"
-              placeholder="SEARCH FILES..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-transparent border border-line focus:border-acid px-4 py-3 pl-10 font-mono text-xs tracking-wider text-ivory placeholder:text-muted focus:outline-none transition-colors"
-            />
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
-          </div>
-        </div>
+      <section className="border-b border-line bg-terminal">
+        <ScrollReveal className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="tag-mono-acid mb-3">{'// RESOURCE VAULT'}</div>
+          <h1 className="display text-4xl sm:text-5xl">Notes &amp; PYQs</h1>
+          <p className="text-ivory-2 mt-3 max-w-2xl text-sm sm:text-base">
+            {totalFiles > 0
+              ? `${totalFiles} file${totalFiles === 1 ? '' : 's'} across ${filtered.length} subject${filtered.length === 1 ? '' : 's'} — live from the vault.`
+              : 'Filter by department, semester, subject and type to find what you need.'}
+          </p>
+        </ScrollReveal>
+      </section>
 
-        {/* Filter */}
-        <div className="flex flex-wrap items-center gap-2 mb-10">
-          <span className="tag-mono mr-2">SEM —</span>
-          {['All', 'Sem 1', 'Sem 2', 'Sem 3', 'Sem 4', 'Sem 5', 'Sem 6', 'Sem 7', 'Sem 8'].map((sem) => (
-            <button
-              key={sem}
-              onClick={() => setSemester(sem)}
-              className={`px-4 py-1.5 font-mono text-[11px] tracking-[0.14em] uppercase border transition-colors ${
-                semester === sem
-                  ? 'border-acid text-acid bg-acid/10'
-                  : 'border-line text-muted hover:text-ivory hover:border-line-2'
-              }`}
-            >
-              {sem}
-            </button>
-          ))}
-        </div>
+      <section className="pb-24">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+          {/* ── Filter panel ─────────────────────────────────────────────── */}
+          <div className="card-brut rounded-xl p-5 sm:p-6 my-8 space-y-4">
+            {/* Department */}
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted mb-2">
+                Department
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                <button onClick={() => setDepartment('All')} className={pill(department === 'All')}>
+                  All
+                </button>
+                {departments.map((d) => (
+                  <button key={d} onClick={() => setDepartment(d)} className={pill(department === d)}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        {/* Table */}
-        <div className="border border-line overflow-x-auto">
-          <table className="w-full text-left min-w-[720px]">
-            <thead>
-              <tr className="border-b border-line bg-ink-2">
-                <th className="tag-mono px-5 py-4 font-normal">FILE</th>
-                <th className="tag-mono px-5 py-4 font-normal">TYPE</th>
-                <th className="tag-mono px-5 py-4 font-normal">SUBJECT / SEM</th>
-                <th className="tag-mono px-5 py-4 font-normal text-right">DL</th>
-                <th className="tag-mono px-5 py-4 font-normal text-right">ACTION</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r, i) => (
-                <motion.tr
-                  key={r._id || r.id || i}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: i * 0.04 }}
-                  className="border-b border-line last:border-b-0 hover:bg-ink-2 transition-colors group"
-                >
-                  <td className="px-5 py-4">
-                    <span className="text-sm text-ivory font-medium group-hover:text-acid transition-colors">
-                      {r.title}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4">
-                    <span className="font-mono text-[10px] tracking-wider text-ivory-2 border border-line px-2 py-0.5">
-                      {r.type}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 font-mono text-xs text-muted">
-                    {r.subject} / {r.semester.toUpperCase()}
-                  </td>
-                  <td className="px-5 py-4 font-mono text-xs text-acid text-right font-bold">
-                    {r.downloads ?? 0}
-                  </td>
-                  <td className="px-5 py-4 text-right">
-                    <button
-                      onClick={() => handleDownload(r)}
-                      className="inline-flex items-center gap-2 px-3 py-1.5 border border-line font-mono text-[10px] tracking-wider uppercase text-ivory-2 hover:border-acid hover:text-acid hover:bg-acid/10 transition-colors"
-                    >
-                      <Download className="w-3 h-3" /> Get
+            {/* Semester + type on one row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted mb-2">
+                  Semester
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {SEMESTERS.map((s) => (
+                    <button key={s} onClick={() => setSemester(s)} className={pill(semester === s)}>
+                      {s === 'All' ? 'All' : `Sem ${s}`}
                     </button>
-                  </td>
-                </motion.tr>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted mb-2">
+                  Material type
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {TYPES.map((t) => (
+                    <button key={t} onClick={() => setType(t)} className={pill(type === t)}>
+                      {t === 'All' ? 'All' : t === 'PYQ' ? 'PYQs' : 'Notes'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Subject search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none" />
+              <input
+                value={subjectQuery}
+                onChange={(e) => setSubjectQuery(e.target.value)}
+                placeholder="Search subject name or code (e.g. CS201)..."
+                className="input-brut rounded-md !pl-9 w-full"
+              />
+            </div>
+
+            {hasFilters && (
+              <button
+                onClick={() => {
+                  setDepartment('All');
+                  setSemester('All');
+                  setType('All');
+                  setSubjectQuery('');
+                }}
+                className="font-mono text-[11px] uppercase tracking-[0.14em] text-acid hover:text-ivory transition-colors"
+              >
+                ✕ Clear all filters
+              </button>
+            )}
+          </div>
+
+          {/* ── Results ──────────────────────────────────────────────────── */}
+          {isLoading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="card-brut rounded-xl p-6 animate-pulse">
+                  <div className="h-5 w-1/3 bg-ink-3 rounded mb-3" />
+                  <div className="h-3 w-2/3 bg-ink-3 rounded" />
+                </div>
               ))}
-            </tbody>
-          </table>
-          {filtered.length === 0 && (
-            <div className="py-16 text-center tag-mono">NO FILES MATCH</div>
+            </div>
+          ) : error ? (
+            <ErrorState message={(error as Error).message} onRetry={() => mutate()} />
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              title={hasFilters ? 'Nothing matches these filters' : 'No resources yet'}
+              hint={
+                hasFilters
+                  ? 'Try widening the department, semester or type.'
+                  : 'Notes and PYQs uploaded by members will appear here.'
+              }
+            />
+          ) : (
+            <>
+              <StaggerGroup className="space-y-4">
+                {shown.map((r) => (
+                  <StaggerItem key={r._id}>
+                  <div className="card-brut rounded-xl p-6">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2 mb-4">
+                      <div>
+                        <h3 className="display text-xl">{r.subjectName}</h3>
+                        <p className="font-mono text-[11px] tracking-[0.14em] uppercase text-muted mt-1">
+                          {r.subjectCode || '—'} · sem {r.semester} · {r.department}
+                        </p>
+                      </div>
+                      <span className="chip border border-line text-muted !py-0.5 !px-2 !text-[10px]">
+                        {r.files.length} file{r.files.length === 1 ? '' : 's'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {r.files.map((f) => (
+                        <div
+                          key={f._id}
+                          className="flex items-center justify-between gap-3 border border-line rounded-md px-3.5 py-2.5 hover:border-acid transition-colors"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <FileText className="w-4 h-4 text-acid shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-sm text-ivory truncate">{f.title}</p>
+                              <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-muted">
+                                <span className={f.type === 'PYQ' ? 'text-acid' : ''}>{f.type}</span>
+                                {' · '}
+                                {f.views || 0} views · {f.downloads || 0} downloads
+                              </p>
+                            </div>
+                          </div>
+                          <a
+                            href={f.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="shrink-0 text-acid hover:text-ivory transition-colors"
+                            aria-label={`Open ${f.title}`}
+                          >
+                            <Download className="w-4 h-4" />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  </StaggerItem>
+                ))}
+              </StaggerGroup>
+
+              {filtered.length > visible && (
+                <div className="text-center mt-10">
+                  <button onClick={() => setVisible((v) => v + PAGE_SIZE)} className="btn-brut">
+                    Load more ({filtered.length - visible} remaining)
+                  </button>
+                </div>
+              )}
+            </>
           )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

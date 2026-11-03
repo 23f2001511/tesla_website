@@ -1,65 +1,149 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
+import { X } from 'lucide-react';
+import { useApi } from '@/lib/api';
+import { EmptyState, ErrorState } from '@/components/ui/States';
+import { ScrollReveal, StaggerGroup, StaggerItem } from '@/components/ui/ScrollReveal';
 
-const fallbackImages = [
-  { id: '1', imageUrl: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?q=80&w=1200&auto=format&fit=crop', caption: 'HACK-TESLA 2025 — FINALS', colSpan: 'md:col-span-8' },
-  { id: '2', imageUrl: 'https://images.unsplash.com/photo-1515187029135-18ee286d815b?q=80&w=800&auto=format&fit=crop', caption: 'WEB BOOTCAMP, WK 3', colSpan: 'md:col-span-4' },
-  { id: '3', imageUrl: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?q=80&w=800&auto=format&fit=crop', caption: 'CORE TEAM SYNC', colSpan: 'md:col-span-4' },
-  { id: '4', imageUrl: 'https://images.unsplash.com/photo-1523908511403-7fc7b25592f4?q=80&w=800&auto=format&fit=crop', caption: 'ROBOTICS LAB NIGHT', colSpan: 'md:col-span-4' },
-  { id: '5', imageUrl: 'https://images.unsplash.com/photo-1517048676732-d65bc937f952?q=80&w=1200&auto=format&fit=crop', caption: 'AI RESEARCH GROUP', colSpan: 'md:col-span-8' },
+// Bento spans cycle for visual variety regardless of how many items exist.
+const SPANS = [
+  'col-span-12 md:col-span-8 row-span-2',
+  'col-span-12 md:col-span-4 row-span-1',
+  'col-span-12 md:col-span-4 row-span-1',
+  'col-span-12 md:col-span-4 row-span-1',
+  'col-span-12 md:col-span-8 row-span-1',
 ];
 
-export default function GalleryPage() {
-  const [images, setImages] = useState<any[]>(fallbackImages);
+interface GalleryItem {
+  id: string;
+  _id?: string;
+  title: string;
+  imageUrl?: string;
+  mediaUrl?: string;
+  album: string;
+  caption?: string;
+  mediaType: string;
+  views?: number;
+}
 
-  useEffect(() => {
-    fetch('/api/gallery')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.images && data.images.length > 0) {
-          setImages(data.images);
-        }
-      })
-      .catch((err) => console.warn('Using fallback gallery images:', err));
-  }, []);
+export default function GalleryPage() {
+  const [album, setAlbum] = useState('all');
+  const [lightbox, setLightbox] = useState<GalleryItem | null>(null);
+
+  const { data, error, isLoading, mutate } = useApi<{ items: GalleryItem[]; albums: string[] }>(
+    `/api/gallery?album=${encodeURIComponent(album)}`
+  );
+
+  const items = data?.items || [];
+  const albums = useMemo(() => data?.albums || [], [data]);
 
   return (
-    <div className="bg-ink min-h-screen">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 sm:pt-24">
-        {/* Header */}
-        <div className="pb-10 mb-10 border-b border-line">
-          <div className="tag-mono-acid mb-3">// FIELD RECORDINGS</div>
-          <h1 className="display text-5xl sm:text-7xl text-ivory">GALLERY</h1>
-          <p className="text-ivory-2 mt-4 max-w-md text-sm leading-relaxed">
-            Screenshots from the process — hack nights, workshops, demo days.
+    <div className="bg-ink overflow-x-hidden">
+      <section className="bg-ink pt-20 sm:pt-28 pb-12">
+        <ScrollReveal className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="tag-mono-acid mb-3">{'// GALLERY'}</div>
+          <h1 className="display text-5xl sm:text-7xl lg:text-8xl">
+            Glimpses of our <span className="text-acid">journey</span>
+          </h1>
+          <p className="mt-4 text-ivory-2 text-base sm:text-lg">
+            Memories from workshops, hackathons, and fun events — live from the club database.
           </p>
-        </div>
+        </ScrollReveal>
+      </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-px bg-line border border-line">
-          {images.map((img, i) => (
-            <motion.div
-              key={img._id || img.id || i}
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: i * 0.06 }}
-              className={`relative group overflow-hidden bg-ink aspect-[4/3] ${img.colSpan || 'md:col-span-4'}`}
-            >
-              <img
-                src={img.imageUrl}
-                alt={img.caption}
-                className="w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-[1.02] transition-all duration-500"
-              />
-              <div className="absolute inset-x-0 bottom-0 bg-ink border-t border-line px-4 py-2.5 flex items-center justify-between translate-y-full group-hover:translate-y-0 transition-transform duration-300">
-                <span className="tag-mono-acid truncate mr-2">{img.caption}</span>
-                <span className="tag-mono shrink-0">IMG_{String(i + 1).padStart(3, '0')}</span>
-              </div>
-            </motion.div>
-          ))}
+      <section className="bg-ink pb-24">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+          {albums.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-8">
+              <button
+                onClick={() => setAlbum('all')}
+                className={`px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-[0.12em] border transition-colors ${
+                  album === 'all' ? 'bg-acid text-acid-ink border-acid font-bold' : 'border-line text-ivory-2 hover:border-acid hover:text-acid'
+                }`}
+              >
+                All albums
+              </button>
+              {albums.map((a) => (
+                <button
+                  key={a}
+                  onClick={() => setAlbum(a)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-[0.12em] border transition-colors ${
+                    album === a ? 'bg-acid text-acid-ink border-acid font-bold' : 'border-line text-ivory-2 hover:border-acid hover:text-acid'
+                  }`}
+                >
+                  {a}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {isLoading ? (
+            <div className="grid grid-cols-12 gap-3 auto-rows-[220px]">
+              {SPANS.map((s, i) => (
+                <div key={i} className={`${s} rounded-xl border border-line bg-ink-3 animate-pulse`} />
+              ))}
+            </div>
+          ) : error ? (
+            <ErrorState message={(error as Error).message} onRetry={() => mutate()} />
+          ) : items.length === 0 ? (
+            <EmptyState title="Gallery is empty" hint="Photos and videos added by admins will appear here." />
+          ) : (
+            <StaggerGroup className="grid grid-cols-12 gap-3 auto-rows-[220px]">
+              {items.map((item, i) => (
+                <StaggerItem
+                  key={item.id}
+                  onClick={() => setLightbox(item)}
+                  className={`relative rounded-xl overflow-hidden group cursor-pointer border border-line hover:border-acid transition-colors ${SPANS[i % SPANS.length]}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={item.imageUrl}
+                    alt={item.title}
+                    loading="lazy"
+                    className="w-full h-full object-cover grayscale-[40%] group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700"
+                  />
+                  <div className="absolute inset-0 bg-ink/40 group-hover:bg-transparent transition-colors" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-ink/90 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-5">
+                    <span className="display text-lg text-ivory">{item.title}</span>
+                    <span className="font-mono text-[11px] tracking-[0.14em] uppercase text-acid">
+                      {item.album}{item.mediaType === 'Video' ? ' · video' : ''}
+                    </span>
+                  </div>
+                </StaggerItem>
+              ))}
+            </StaggerGroup>
+          )}
         </div>
-      </div>
+      </section>
+
+      {/* Lightbox */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[100] bg-ink/95 backdrop-blur-sm flex items-center justify-center p-4 sm:p-10"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            className="absolute top-5 right-5 w-10 h-10 rounded-md border border-line flex items-center justify-center text-ivory hover:border-acid hover:text-acid transition-colors"
+            aria-label="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <figure className="max-w-4xl w-full" onClick={(e) => e.stopPropagation()}>
+            {lightbox.mediaType === 'Video' && lightbox.mediaUrl ? (
+              <video src={lightbox.mediaUrl} controls className="w-full rounded-xl border border-line max-h-[75vh]" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={lightbox.imageUrl} alt={lightbox.title} className="w-full rounded-xl border border-line max-h-[75vh] object-contain" />
+            )}
+            <figcaption className="mt-4 flex items-baseline justify-between gap-4">
+              <span className="display text-xl text-ivory">{lightbox.title}</span>
+              <span className="font-mono text-[11px] uppercase tracking-[0.14em] text-acid">{lightbox.album}</span>
+            </figcaption>
+            {lightbox.caption && <p className="text-sm text-ivory-2 mt-1">{lightbox.caption}</p>}
+          </figure>
+        </div>
+      )}
     </div>
   );
 }

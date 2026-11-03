@@ -1,27 +1,72 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { Menu, X, ArrowUpRight, ShieldCheck } from 'lucide-react';
-import { usePathname } from 'next/navigation';
-import { useUser } from '@clerk/nextjs';
+import { usePathname, useRouter } from 'next/navigation';
+import {
+  Menu,
+  X,
+  ChevronDown,
+  LayoutDashboard,
+  ShieldCheck,
+  LogOut,
+  Sparkles,
+} from 'lucide-react';
+import { ClubLogo } from '@/components/logo/ClubLogo';
+import { PremiumLogoLink } from '@/components/logo/PremiumLogoLink';
+
+interface CurrentUser {
+  name: string;
+  email: string;
+  role: string;
+  profileImage?: string;
+}
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
-  const { isSignedIn } = useUser();
-  const [announcement, setAnnouncement] = useState<any>(null);
+  const router = useRouter();
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [user, setUser] = useState<CurrentUser | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
-    fetch('/api/settings')
+    fetch('/api/user/me')
       .then((res) => res.json())
       .then((data) => {
-        if (data.success && data.settings?.announcement?.active) {
-          setAnnouncement(data.settings.announcement);
+        if (data.success && data.user) {
+          setUser(data.user);
+        } else {
+          setUser(null);
         }
       })
-      .catch((err) => console.warn('Announcement fetch notice:', err));
+      .catch(() => setUser(null))
+      .finally(() => setAuthChecked(true));
   }, []);
+
+  // Close the dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleLogout = async () => {
+    setMenuOpen(false);
+    setIsOpen(false);
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (err) {
+      console.error('Logout notice:', err);
+    }
+    setUser(null);
+    router.push('/');
+  };
 
   const navLinks = [
     { name: 'About', href: '/about' },
@@ -33,83 +78,92 @@ export function Navbar() {
     { name: 'Gallery', href: '/gallery' },
   ];
 
+  const initials = (user?.name || '?')
+    .split(' ')
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+
+  const isActive = (href: string) =>
+    pathname === href || (href !== '/' && pathname.startsWith(href));
+
   return (
-    <header className="fixed top-0 w-full z-50 bg-ink border-b border-line">
-      {announcement && announcement.active && (
-        <div className="bg-acid text-acid-ink font-mono text-[11px] py-1.5 px-4 text-center tracking-wider font-bold border-b border-acid/20 flex items-center justify-center gap-2">
-          <span>{announcement.text}</span>
-          {announcement.link && (
-            <Link
-              href={announcement.link}
-              className="underline hover:opacity-80 inline-flex items-center"
-            >
-              Learn More →
-            </Link>
-          )}
-        </div>
-      )}
-
+    <header className="fixed top-0 w-full z-50 bg-transparent">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-stretch justify-between h-16">
-          {/* Logo */}
-          <Link
-            href="/"
-            className="flex items-center gap-3 group border-r border-line pr-4 sm:pr-6"
-          >
-            <span className="w-8 h-8 bg-acid text-acid-ink font-bold text-sm flex items-center justify-center tracking-tighter">
-              T
-            </span>
-            <span className="flex flex-col leading-none">
-              <span className="font-bold tracking-tight text-ivory text-base">
-                TESLA
-              </span>
-              <span className="tag-mono text-[9px]">Technical Club</span>
-            </span>
-          </Link>
+        <div className="flex items-center justify-between h-20">
+          {/* Logo — original club mark with premium charge-up click */}
+          <PremiumLogoLink href="/" className="shrink-0" ariaLabel="TESLA — home">
+            <ClubLogo size={56} />
+          </PremiumLogoLink>
 
-          {/* Desktop nav */}
-          <nav className="hidden lg:flex items-stretch flex-1">
-            {navLinks.map((link) => {
-              const active = pathname === link.href;
-              return (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  className={`flex items-center px-4 border-l border-line first:border-l-0 tag-mono transition-colors ${
-                    active
-                      ? 'text-acid bg-acid/5'
-                      : 'text-ivory-2 hover:text-ivory hover:bg-ink-2'
-                  }`}
-                >
-                  {link.name}
-                </Link>
-              );
-            })}
+          {/* Center nav */}
+          <nav className="hidden lg:flex items-center gap-1">
+            {navLinks.map((link) => (
+              <Link
+                key={link.name}
+                href={link.href}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActive(link.href)
+                    ? 'text-acid bg-acid/10'
+                    : 'text-ivory-2 hover:text-ivory hover:bg-white/[0.04]'
+                }`}
+              >
+                {link.name}
+              </Link>
+            ))}
           </nav>
 
-          {/* Desktop actions */}
-          <div className="hidden lg:flex items-center">
-            {isSignedIn ? (
-              <Link
-                href="/admin"
-                className="tag-mono px-4 py-2 text-acid hover:text-ivory transition-colors border-l border-line flex items-center gap-1.5"
-              >
-                <ShieldCheck className="w-3.5 h-3.5" /> Admin Panel
-              </Link>
+          {/* Right cluster */}
+          <div className="hidden md:flex items-center gap-3 shrink-0">
+            {!authChecked ? null : user ? (
+              <div ref={menuRef} className="relative">
+                <button
+                  onClick={() => setMenuOpen((v) => !v)}
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-full border border-line hover:border-acid/40 transition-colors"
+                  aria-label="User menu"
+                >
+                  <span className="w-7 h-7 rounded-full bg-acid text-acid-ink text-xs font-bold flex items-center justify-center">
+                    {initials}
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-muted" />
+                </button>
+                {menuOpen && (
+                  <div className="absolute right-0 mt-2 w-56 rounded-xl border border-line bg-ink-2 shadow-2xl overflow-hidden">
+                    <div className="px-4 py-3 border-b border-line">
+                      <p className="text-sm text-ivory truncate">{user.name}</p>
+                      <p className="text-xs text-muted">{user.role}</p>
+                    </div>
+                    <Link
+                      href="/dashboard"
+                      onClick={() => setMenuOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-ivory-2 hover:bg-white/[0.04] transition-colors"
+                    >
+                      <LayoutDashboard className="w-4 h-4" /> Dashboard
+                    </Link>
+                    {user.role === 'Admin' && (
+                      <Link
+                        href="/admin"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-ivory-2 hover:bg-white/[0.04] transition-colors"
+                      >
+                        <ShieldCheck className="w-4 h-4" /> Admin Panel
+                      </Link>
+                    )}
+                    <button
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-acid hover:bg-acid/10 transition-colors border-t border-line"
+                    >
+                      <LogOut className="w-4 h-4" /> Logout
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
-              <Link
-                href="/admin"
-                className="tag-mono px-4 py-2 text-ivory-2 hover:text-acid transition-colors border-l border-line"
-              >
-                Admin
+              <Link href="/login" className="btn-acid !py-2 !px-5 text-sm">
+                <Sparkles className="w-4 h-4" /> Login
               </Link>
             )}
-            <Link
-              href="/contact"
-              className="ml-0 flex items-center gap-1.5 px-5 h-16 bg-acid text-acid-ink font-mono text-[11px] tracking-[0.14em] uppercase font-bold hover:bg-ivory transition-colors"
-            >
-              Join <ArrowUpRight className="w-3.5 h-3.5" />
-            </Link>
           </div>
 
           {/* Mobile toggle */}
@@ -126,37 +180,62 @@ export function Navbar() {
       {/* Mobile menu */}
       {isOpen && (
         <div className="lg:hidden border-t border-line bg-ink">
-          <nav className="flex flex-col">
-            {navLinks.map((link) => {
-              const active = pathname === link.href;
-              return (
-                <Link
-                  key={link.name}
-                  href={link.href}
-                  onClick={() => setIsOpen(false)}
-                  className={`px-6 py-4 border-b border-line font-mono text-xs tracking-[0.14em] uppercase ${
-                    active ? 'text-acid' : 'text-ivory-2'
-                  }`}
-                >
-                  {link.name}
+          <nav className="flex flex-col p-3">
+            {navLinks.map((link) => (
+              <Link
+                key={link.name}
+                href={link.href}
+                onClick={() => setIsOpen(false)}
+                className={`px-4 py-3 rounded-lg text-sm ${
+                  isActive(link.href)
+                    ? 'text-ivory bg-ink-2'
+                    : 'text-ivory-2'
+                }`}
+              >
+                {link.name}
+              </Link>
+            ))}
+
+            <div className="mt-3 pt-3 border-t border-line">
+              {!authChecked ? null : user ? (
+                <>
+                  <div className="flex items-center gap-3 px-4 pb-3">
+                    <span className="w-8 h-8 rounded-full bg-acid text-acid-ink text-xs font-bold flex items-center justify-center">
+                      {initials}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm text-ivory truncate">{user.name}</p>
+                      <p className="text-xs text-muted">{user.role}</p>
+                    </div>
+                  </div>
+                  <Link
+                    href="/dashboard"
+                    onClick={() => setIsOpen(false)}
+                    className="flex items-center gap-2.5 px-4 py-3 rounded-lg text-sm text-ivory-2"
+                  >
+                    <LayoutDashboard className="w-4 h-4" /> Dashboard
+                  </Link>
+                  {user.role === 'Admin' && (
+                    <Link
+                      href="/admin"
+                      onClick={() => setIsOpen(false)}
+                      className="flex items-center gap-2.5 px-4 py-3 rounded-lg text-sm text-ivory-2"
+                    >
+                      <ShieldCheck className="w-4 h-4" /> Admin Panel
+                    </Link>
+                  )}
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-2.5 px-4 py-3 rounded-lg text-sm text-acid"
+                  >
+                    <LogOut className="w-4 h-4" /> Logout
+                  </button>
+                </>
+              ) : (
+                <Link href="/login" onClick={() => setIsOpen(false)} className="btn-acid w-full">
+                  Login
                 </Link>
-              );
-            })}
-            <div className="flex gap-0">
-              <Link
-                href="/admin"
-                onClick={() => setIsOpen(false)}
-                className="flex-1 px-6 py-4 text-center font-mono text-xs tracking-[0.14em] uppercase text-ivory-2 border-r border-line"
-              >
-                Admin Panel
-              </Link>
-              <Link
-                href="/contact"
-                onClick={() => setIsOpen(false)}
-                className="flex-1 px-6 py-4 text-center font-mono text-xs tracking-[0.14em] uppercase bg-acid text-acid-ink font-bold"
-              >
-                Join
-              </Link>
+              )}
             </div>
           </nav>
         </div>

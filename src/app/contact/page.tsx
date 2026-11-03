@@ -1,154 +1,109 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { ArrowUpRight } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { Mail, MapPin, Phone, Send } from 'lucide-react';
+import { ScrollReveal, StaggerGroup, StaggerItem } from '@/components/ui/ScrollReveal';
 
 export default function ContactPage() {
-  const [sent, setSent] = useState(false);
-  const [settings, setSettings] = useState<any>({
-    contactEmail: 'teslaclub@college.edu',
-    location: 'CSE Block, Campus',
-    discordUrl: 'https://discord.gg/tesla',
-    labHours: 'Lab open 16:00–21:00',
-  });
-
-  useEffect(() => {
-    fetch('/api/settings')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.settings) {
-          setSettings(data.settings);
-        }
-      })
-      .catch((err) => console.warn('Using fallback contact settings:', err));
-  }, []);
-
-  const channels = [
-    { k: 'EMAIL', v: settings.contactEmail, href: `mailto:${settings.contactEmail}` },
-    { k: 'LOCATION', v: settings.location, href: '#' },
-    { k: 'DISCORD', v: settings.discordUrl.replace('https://', ''), href: settings.discordUrl },
-    { k: 'HOURS', v: settings.labHours, href: '#' },
-  ];
-
   return (
-    <div className="bg-ink min-h-screen">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 sm:pt-24">
-        {/* Header */}
-        <div className="pb-10 mb-12 border-b border-line">
-          <div className="tag-mono-acid mb-3">// CONTACT</div>
-          <h1 className="display text-5xl sm:text-7xl text-ivory">
-            SAY HELLO<span className="text-acid">.</span>
+    <div className="bg-ink overflow-x-hidden">
+      <section className="bg-ink pt-20 sm:pt-28 pb-12">
+        <ScrollReveal className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 text-center max-w-2xl mx-auto">
+          <div className="tag-mono-acid mb-3">{'// Signal'}</div>
+          <h1 className="display text-5xl sm:text-7xl lg:text-8xl">
+            Contact <span className="text-acid">us</span>
           </h1>
-        </div>
+          <p className="mt-4 text-ivory-2 text-base sm:text-lg">
+            Have a question or want to join the club? We&apos;d love to hear from you.
+          </p>
+        </ScrollReveal>
+      </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-          {/* Left: direct channels */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="lg:col-span-5"
-          >
-            <div className="tag-mono mb-6">DIRECT CHANNELS —</div>
-            <div className="border border-line">
-              {channels.map((c, i) => (
-                <a
-                  key={c.k}
-                  href={c.href}
-                  target={c.href.startsWith('http') ? '_blank' : undefined}
-                  rel={c.href.startsWith('http') ? 'noopener noreferrer' : undefined}
-                  className={`flex items-center justify-between px-5 py-5 group hover:bg-ink-2 transition-colors ${
-                    i !== 0 ? 'border-t border-line' : ''
-                  }`}
-                >
-                  <div>
-                    <div className="tag-mono mb-1">{c.k}</div>
-                    <div className="font-mono text-sm text-ivory group-hover:text-acid transition-colors">
-                      {c.v}
+      <section className="bg-ink pb-24">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+          <StaggerGroup className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Contact info */}
+            <StaggerItem>
+            <div className="flex flex-col gap-4">
+              <div className="card-brut rounded-xl p-7">
+                <div className="tag-mono-acid mb-4">{'// Channels'}</div>
+                <h3 className="display text-xl mb-5">Get in touch</h3>
+
+                <div className="space-y-5">
+                  <div className="flex items-start gap-4">
+                    <div className="p-2.5 bg-acid/10 rounded-md text-acid shrink-0"><MapPin className="w-4 h-4" /></div>
+                    <div>
+                      <h4 className="font-mono text-[11px] tracking-[0.14em] uppercase text-acid">Location</h4>
+                      <p className="text-sm text-ivory-2 mt-1">CSE Block, College Campus, India 400001</p>
                     </div>
                   </div>
-                  <ArrowUpRight className="w-4 h-4 text-muted group-hover:text-acid group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-                </a>
-              ))}
-            </div>
-
-            <div className="border border-line border-t-0 p-5">
-              <div className="tag-mono-acid mb-2">// WANT TO JOIN?</div>
-              <p className="text-sm text-muted leading-relaxed">
-                Show up to any open session — no forms. Or send a message here
-                and a core member will reply within 48 hours.
-              </p>
-            </div>
-          </motion.div>
-
-          {/* Right: form */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="lg:col-span-7"
-          >
-            <form
-              className="border border-line corner-marks p-6 sm:p-10 flex flex-col gap-6"
-              onSubmit={(e) => {
-                e.preventDefault();
-                setSent(true);
-              }}
-            >
-              <div className="tag-mono-acid">// NEW MESSAGE</div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <label className="tag-mono block mb-2">NAME</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Jane Doe"
-                    className="w-full bg-transparent border border-line focus:border-acid px-4 py-3 text-sm text-ivory placeholder:text-muted focus:outline-none transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="tag-mono block mb-2">EMAIL</label>
-                  <input
-                    type="email"
-                    required
-                    placeholder="jane@college.edu"
-                    className="w-full bg-transparent border border-line focus:border-acid px-4 py-3 text-sm text-ivory placeholder:text-muted focus:outline-none transition-colors"
-                  />
+                  <div className="flex items-start gap-4">
+                    <div className="p-2.5 bg-acid/10 rounded-md text-acid shrink-0"><Mail className="w-4 h-4" /></div>
+                    <div>
+                      <h4 className="font-mono text-[11px] tracking-[0.14em] uppercase text-acid">Email</h4>
+                      <p className="text-sm text-ivory-2 mt-1">teslaclub@college.edu</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-4">
+                    <div className="p-2.5 bg-acid/10 rounded-md text-acid shrink-0"><Phone className="w-4 h-4" /></div>
+                    <div>
+                      <h4 className="font-mono text-[11px] tracking-[0.14em] uppercase text-acid">Phone</h4>
+                      <p className="text-sm text-ivory-2 mt-1">+91 98765 43210</p>
+                    </div>
+                  </div>
                 </div>
               </div>
 
+              <div className="card-brut rounded-xl p-7">
+                <div className="tag-mono-acid mb-3">{'// Community'}</div>
+                <h3 className="display text-xl mb-3">Join our Discord</h3>
+                <p className="text-sm text-muted mb-5">
+                  Be a part of our thriving online community of developers and designers.
+                </p>
+                <button className="w-full py-2.5 border border-line hover:border-acid hover:text-acid text-ivory-2 rounded-md font-mono text-[11px] tracking-[0.14em] uppercase transition-colors">
+                  Join Discord Server
+                </button>
+              </div>
+            </div>
+            </StaggerItem>
+
+            {/* Form */}
+            <StaggerItem>
+            <form className="card-brut rounded-xl p-7 flex flex-col gap-5">
+              <div className="tag-mono-acid mb-1">{'// Message'}</div>
+              <h3 className="display text-xl mb-3">Send us a message</h3>
+
               <div>
-                <label className="tag-mono block mb-2">SUBJECT</label>
-                <select
-                  className="w-full bg-ink border border-line focus:border-acid px-4 py-3 text-sm text-ivory focus:outline-none transition-colors appearance-none"
-                >
-                  <option>General inquiry</option>
-                  <option>Membership</option>
-                  <option>Sponsorship</option>
-                  <option>Speaking / collab</option>
+                <label className="block font-mono text-[11px] tracking-[0.14em] uppercase text-muted mb-2">Full name</label>
+                <input type="text" className="input-brut rounded-md" placeholder="John Doe" />
+              </div>
+
+              <div>
+                <label className="block font-mono text-[11px] tracking-[0.14em] uppercase text-muted mb-2">Email address</label>
+                <input type="email" className="input-brut rounded-md" placeholder="john@example.com" />
+              </div>
+
+              <div>
+                <label className="block font-mono text-[11px] tracking-[0.14em] uppercase text-muted mb-2">Subject</label>
+                <select className="input-brut rounded-md text-ivory-2 appearance-none cursor-pointer">
+                  <option value="general">General Inquiry</option>
+                  <option value="join">Membership Request</option>
+                  <option value="sponsor">Sponsorship</option>
                 </select>
               </div>
 
               <div>
-                <label className="tag-mono block mb-2">MESSAGE</label>
-                <textarea
-                  rows={5}
-                  required
-                  placeholder="What's on your mind?"
-                  className="w-full bg-transparent border border-line focus:border-acid px-4 py-3 text-sm text-ivory placeholder:text-muted focus:outline-none transition-colors resize-none"
-                />
+                <label className="block font-mono text-[11px] tracking-[0.14em] uppercase text-muted mb-2">Message</label>
+                <textarea rows={4} className="input-brut rounded-md resize-none" placeholder="How can we help you?" />
               </div>
 
-              <button type="submit" className="btn-acid self-start">
-                {sent ? "Message sent — we'll reply soon" : 'Send message'}
-                <ArrowUpRight className="w-4 h-4" />
+              <button type="button" className="btn-acid mt-2 w-full justify-center">
+                Send Message <Send className="w-4 h-4" />
               </button>
             </form>
-          </motion.div>
+            </StaggerItem>
+          </StaggerGroup>
         </div>
-      </div>
+      </section>
     </div>
   );
 }

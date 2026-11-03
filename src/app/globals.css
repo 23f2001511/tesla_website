@@ -1,29 +1,40 @@
 @import "tailwindcss";
 
 @theme {
-  /* Brutalist Terminal Palette */
-  --color-ink: #0a0a08;          /* off-black background */
-  --color-ink-2: #111110;        /* slightly lighter panel */
-  --color-ink-3: #181815;        /* hover panel */
-  --color-ivory: #efece4;        /* primary text */
-  --color-ivory-2: #c9c6ba;      /* secondary text */
-  --color-muted: #8b897f;        /* tertiary text */
-  --color-line: #2a2a26;         /* hairline border */
-  --color-line-2: #3a3a35;       /* stronger border */
-  --color-acid: #d8ff3d;         /* single accent */
-  --color-acid-ink: #0a0a08;     /* text on acid */
+  /* ── Brutalist Terminal Palette ──────────────────────────────── */
+  --color-ink: #0a0a08;
+  --color-ink-2: #111110;
+  --color-ink-3: #181815;
+  --color-ivory: #efece4;
+  --color-ivory-2: #c9c6ba;
+  --color-muted: #8b897f;
+  --color-line: #2a2a26;
+  --color-line-2: #3a3a35;
+  --color-acid: #d8ff3d;
+  --color-acid-ink: #0a0a08;
 
+  /* ── Typography ─────────────────────────────────────────────── */
   --font-display: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex), ui-monospace, "SF Mono", Menlo, monospace;
+  --font-sans: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
 
+  /* ── Semantic aliases (so old `bg-background` / `text-foreground`
+     classNames from the previous design system keep working) ── */
   --color-background: var(--color-ink);
   --color-foreground: var(--color-ivory);
+  --color-card: var(--color-ink-2);
+  --color-card-foreground: var(--color-ivory);
+  --color-border: var(--color-line);
+  --color-muted-foreground: var(--color-muted);
+  --color-primary: var(--color-acid);
+  --color-primary-foreground: var(--color-acid-ink);
+  --color-secondary: var(--color-acid);
+  --color-accent: var(--color-acid);
+  --color-accent-foreground: var(--color-acid-ink);
 }
 
 @layer base {
-  html {
-    scroll-behavior: smooth;
-  }
+  html { scroll-behavior: smooth; }
   body {
     background-color: var(--color-ink);
     color: var(--color-ivory);
@@ -31,26 +42,11 @@
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
-  ::selection {
-    background: var(--color-acid);
-    color: var(--color-acid-ink);
-  }
-  /* Ruler scrollbar */
-  ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
-  ::-webkit-scrollbar-track {
-    background: var(--color-ink);
-    border-left: 1px solid var(--color-line);
-  }
-  ::-webkit-scrollbar-thumb {
-    background: var(--color-line-2);
-    border: 2px solid var(--color-ink);
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-acid);
-  }
+  ::selection { background: var(--color-acid); color: var(--color-acid-ink); }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--color-ink); border-left: 1px solid var(--color-line); }
+  ::-webkit-scrollbar-thumb { background: var(--color-line-2); border: 2px solid var(--color-ink); }
+  ::-webkit-scrollbar-thumb:hover { background: var(--color-acid); }
 }
 
 @layer utilities {
@@ -70,7 +66,7 @@
     color: var(--color-acid);
   }
 
-  /* Display headline, tight + caps */
+  /* Display headline, tight + uppercase */
   .display {
     font-family: var(--font-display);
     font-weight: 700;
@@ -106,10 +102,7 @@
     text-transform: uppercase;
     transition: all 160ms ease;
   }
-  .btn-brut:hover {
-    background: var(--color-ivory);
-    color: var(--color-ink);
-  }
+  .btn-brut:hover { background: var(--color-ivory); color: var(--color-ink); }
 
   /* Solid acid button */
   .btn-acid {
@@ -127,10 +120,7 @@
     font-weight: 700;
     transition: all 160ms ease;
   }
-  .btn-acid:hover {
-    background: transparent;
-    color: var(--color-acid);
-  }
+  .btn-acid:hover { background: transparent; color: var(--color-acid); }
 
   /* Crosshair / terminal grid background */
   .bg-terminal {
@@ -141,54 +131,56 @@
   }
 
   /* Big outlined display text */
-  .text-outline {
-    -webkit-text-stroke: 1px var(--color-line-2);
-    color: transparent;
+  .text-outline { -webkit-text-stroke: 1px var(--color-line-2); color: transparent; }
+  .text-outline-acid { -webkit-text-stroke: 1px var(--color-acid); color: transparent; }
+
+  /* Input that matches the brutalist system */
+  .input-brut {
+    width: 100%;
+    background: transparent;
+    color: var(--color-ivory);
+    border: 1px solid var(--color-line);
+    padding: 0.75rem 1rem;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    transition: border-color 160ms ease, box-shadow 160ms ease;
+    outline: none;
   }
-  .text-outline-acid {
-    -webkit-text-stroke: 1px var(--color-acid);
-    color: transparent;
+  .input-brut:focus {
+    border-color: var(--color-acid);
+    box-shadow: 0 0 0 3px rgba(216, 255, 61, 0.15);
+  }
+  .input-brut::placeholder { color: var(--color-muted); }
+
+  /* Small chip used in cards / filter pills */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 999px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
 
   /* Marquee */
-  @keyframes marquee {
-    from { transform: translateX(0); }
-    to   { transform: translateX(-50%); }
-  }
-  .marquee-track {
-    display: inline-flex;
-    white-space: nowrap;
-    animation: marquee 32s linear infinite;
-  }
+  @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+  .marquee-track { display: inline-flex; white-space: nowrap; animation: marquee 32s linear infinite; }
 
   /* Hide scrollbar */
   .hide-scrollbar::-webkit-scrollbar { display: none; }
-  .hide-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
+  .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
   /* Blink terminal cursor */
-  @keyframes blink {
-    0%, 49% { opacity: 1; }
-    50%, 100% { opacity: 0; }
-  }
-  .caret-blink {
-    animation: blink 1s step-end infinite;
-  }
+  @keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+  .caret-blink { animation: blink 1s step-end infinite; }
 
-  /* Hard corner marker (┐ etc) */
-  .corner-marks {
-    position: relative;
-  }
-  .corner-marks::before,
-  .corner-marks::after {
-    content: "";
-    position: absolute;
-    width: 14px;
-    height: 14px;
-    border-color: var(--color-acid);
-    pointer-events: none;
+  /* Hard corner marker */
+  .corner-marks { position: relative; }
+  .corner-marks::before, .corner-marks::after {
+    content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none;
   }
   .corner-marks::before {
     top: -1px; left: -1px;
@@ -200,4 +192,188 @@
     border-bottom: 1px solid var(--color-acid);
     border-right: 1px solid var(--color-acid);
   }
+
+  /* ── Backwards-compat helpers from the previous glass design ── */
+  .glass { background: var(--color-ink-2); border: 1px solid var(--color-line); backdrop-filter: blur(8px); }
+  .text-gradient {
+    background-image: linear-gradient(to right, #d8ff3d, #d8ff3d);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .glow-text { text-shadow: 0 0 18px rgba(216, 255, 61, 0.45); }
+  .glow-box { box-shadow: 0 0 40px -10px rgba(216, 255, 61, 0.4); }
+  .perspective { perspective: 1000px; }
+  .preserve-3d { transform-style: preserve-3d; }
+  .backface-hidden { backface-visibility: hidden; }
+  .rotate-y-180 { transform: rotateY(180deg); }
+
+  /* ── TESLA logo: idle electric hum + premium click charge-up burst ── */
+  @keyframes logo-hum {
+    0%, 42%, 100% { filter: drop-shadow(0 0 2px rgba(216, 255, 61, 0.0)); }
+    46% { filter: drop-shadow(0 0 7px rgba(216, 255, 61, 0.65)); }
+    52% { filter: drop-shadow(0 0 2px rgba(216, 255, 61, 0.12)); }
+    58% { filter: drop-shadow(0 0 8px rgba(216, 255, 61, 0.7)); }
+    78% { filter: drop-shadow(0 0 3px rgba(216, 255, 61, 0.2)); }
+  }
+  .logo-hum { animation: logo-hum 4.4s ease-in-out infinite; will-change: filter; }
+
+  @keyframes logo-spin-burst {
+    0% { transform: rotate(0deg) scale(1); }
+    100% { transform: rotate(720deg) scale(1.12); }
+  }
+  .logo-spin-burst { animation: logo-spin-burst 0.65s cubic-bezier(0.3, 0, 0.7, 1) forwards; }
+
+  @keyframes current-ring {
+    0% { transform: scale(0.35); opacity: 0.95; }
+    100% { transform: scale(2.8); opacity: 0; }
+  }
+  .current-ring { animation: current-ring 0.65s cubic-bezier(0.2, 0.6, 0.3, 1) forwards; transform-origin: center; }
+
+  @keyframes spark-arc {
+    0% { stroke-dashoffset: 60; opacity: 0; }
+    18% { opacity: 1; }
+    100% { stroke-dashoffset: 0; opacity: 0; }
+  }
+  .spark-arc { animation: spark-arc 0.65s ease-out forwards; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASHBOARD TOKEN ALIGNMENT (dark scope)
+   The dashboard/admin pages were built on Tailwind's default palette
+   (indigo/blue/purple accents, cool grays, bluish-dark surfaces). The
+   brutalist terminal palette in @theme above is the single source of truth,
+   so inside the dashboard scope ([data-theme]) we re-map the default palette
+   variables onto the site tokens — the exact same mechanism dashboard/theme.ts
+   uses to deliver light mode. Tailwind v4 utilities compile to
+   var(--color-*), so every shade and opacity variant follows automatically.
+
+   Accent rule (intentional, not decorative):
+   • acid  #d8ff3d  → default accent (icons, links, active states, plain counts)
+   • emerald #10b981 → success / published / completed
+   • amber #f59e0b  → pending / warning
+   • red #ef4444    → rejected / danger
+   • muted/ivory    → neutral
+   ═══════════════════════════════════════════════════════════════════════════ */
+[data-theme='dark'] {
+  /* Non-semantic hues → acid (one accent, no per-card color scatter) */
+  --color-indigo-200: var(--color-acid);
+  --color-indigo-300: var(--color-acid);
+  --color-indigo-400: var(--color-acid);
+  --color-indigo-500: var(--color-acid);
+  --color-indigo-600: var(--color-acid);
+  --color-indigo-700: var(--color-acid);
+  --color-indigo-800: var(--color-acid);
+  --color-indigo-900: var(--color-acid);
+  --color-blue-200: var(--color-acid);
+  --color-blue-300: var(--color-acid);
+  --color-blue-400: var(--color-acid);
+  --color-blue-500: var(--color-acid);
+  --color-blue-600: var(--color-acid);
+  --color-blue-700: var(--color-acid);
+  --color-blue-800: var(--color-acid);
+  --color-violet-200: var(--color-acid);
+  --color-violet-300: var(--color-acid);
+  --color-violet-400: var(--color-acid);
+  --color-violet-500: var(--color-acid);
+  --color-violet-600: var(--color-acid);
+  --color-violet-700: var(--color-acid);
+  --color-purple-200: var(--color-acid);
+  --color-purple-300: var(--color-acid);
+  --color-purple-400: var(--color-acid);
+  --color-purple-500: var(--color-acid);
+  --color-purple-600: var(--color-acid);
+  --color-purple-700: var(--color-acid);
+  --color-fuchsia-400: var(--color-acid);
+  --color-fuchsia-500: var(--color-acid);
+  --color-pink-300: var(--color-acid);
+  --color-pink-400: var(--color-acid);
+  --color-pink-500: var(--color-acid);
+  --color-pink-600: var(--color-acid);
+  --color-cyan-400: var(--color-acid);
+  --color-cyan-500: var(--color-acid);
+  --color-cyan-600: var(--color-acid);
+  --color-sky-400: var(--color-acid);
+  --color-sky-500: var(--color-acid);
+  --color-sky-600: var(--color-acid);
+  --color-teal-400: var(--color-acid);
+  --color-teal-500: var(--color-acid);
+  --color-teal-600: var(--color-acid);
+  --color-lime-400: var(--color-acid);
+  --color-lime-500: var(--color-acid);
+  /* yellow / orange fold into the amber (warn) family */
+  --color-yellow-400: var(--color-amber-400);
+  --color-yellow-500: var(--color-amber-500);
+  --color-yellow-600: var(--color-amber-600);
+  --color-orange-300: var(--color-amber-300);
+  --color-orange-400: var(--color-amber-400);
+  --color-orange-500: var(--color-amber-500);
+  --color-orange-600: var(--color-amber-600);
+
+  /* Cool neutrals → warm site neutrals */
+  --color-gray-50: var(--color-ivory);
+  --color-gray-100: var(--color-ivory);
+  --color-gray-200: var(--color-ivory-2);
+  --color-gray-300: var(--color-ivory-2);
+  --color-gray-400: var(--color-muted);
+  --color-gray-500: var(--color-muted);
+  --color-gray-600: color-mix(in srgb, var(--color-muted) 70%, var(--color-ink));
+  --color-gray-700: var(--color-line-2);
+  --color-gray-800: var(--color-line);
+  --color-gray-900: var(--color-ink-2);
+  --color-gray-950: var(--color-ink);
+  --color-slate-50: var(--color-ivory);
+  --color-slate-100: var(--color-ivory);
+  --color-slate-200: var(--color-ivory-2);
+  --color-slate-300: var(--color-ivory-2);
+  --color-slate-400: var(--color-muted);
+  --color-slate-500: var(--color-muted);
+  --color-slate-600: color-mix(in srgb, var(--color-muted) 70%, var(--color-ink));
+  --color-slate-700: var(--color-line-2);
+  --color-slate-800: var(--color-line);
+  --color-slate-900: var(--color-ink-2);
+  --color-slate-950: var(--color-ink);
+  /* Pure white text/surfaces warm to ivory to match the public pages */
+  --color-white: var(--color-ivory);
+}
+/* Space Grotesk ships 400/500/700 — 800/900 would be synthesized faux-bold */
+[data-theme] .font-black { font-weight: 700; }
+[data-theme] .font-extrabold { font-weight: 700; }
+
+/* Solid acid surfaces: ivory text flips to ink for contrast */
+[data-theme='dark']
+  :is(
+    .bg-indigo-500, .bg-indigo-600, .bg-blue-500, .bg-blue-600,
+    .bg-purple-500, .bg-purple-600, .bg-violet-500, .bg-violet-600,
+    .bg-cyan-500, .bg-cyan-600, .bg-pink-500, .bg-pink-600,
+    .bg-fuchsia-500, .bg-sky-500, .bg-sky-600,
+    .bg-teal-500, .bg-teal-600, .bg-orange-500, .bg-yellow-500,
+    .bg-indigo-500\/80, .from-indigo-500, .from-indigo-600,
+    .from-blue-500, .from-blue-600, .from-purple-500, .from-purple-600,
+    .from-violet-500, .from-cyan-500
+  ).text-white {
+  color: var(--color-acid-ink);
+}
+
+/* Bluish arbitrary-hex surfaces → site inks */
+[data-theme='dark'] .bg-\[\#080c14\],
+[data-theme='dark'] .bg-\[\#0b1220\],
+[data-theme='dark'] .bg-\[\#0c1018\],
+[data-theme='dark'] .bg-\[\#0d1117\],
+[data-theme='dark'] .bg-\[\#0f141c\],
+[data-theme='dark'] .bg-\[\#0f172a\],
+[data-theme='dark'] .bg-\[\#111827\] {
+  background-color: var(--color-ink-2);
+}
+[data-theme='dark'] .border-\[\#080c14\],
+[data-theme='dark'] .border-\[\#0d1117\] {
+  border-color: var(--color-ink-2);
+}
+[data-theme='dark'] .ring-\[\#080c14\] {
+  --tw-ring-color: var(--color-ink-2);
+}
+[data-theme='dark'] .from-\[\#080c14\],
+[data-theme='dark'] .from-\[\#0e1420\],
+[data-theme='dark'] .from-\[\#0f141c\] {
+  --tw-gradient-from: var(--color-ink-2);
 }

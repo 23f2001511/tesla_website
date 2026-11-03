@@ -1,33 +1,37 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose from 'mongoose';
 
-export interface IResource extends Document {
-  title: string;
-  type: 'NOTES' | 'PYQ' | 'LAB' | 'SLIDES' | 'BOOK';
-  subject: string;
-  semester: string;
-  fileUrl: string;
-  downloads: number;
-  createdAt: Date;
-  updatedAt: Date;
-}
+const resourceFileSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  fileUrl: { type: String, required: true },
+  type: { type: String, enum: ['Note', 'PYQ'], required: true },
+  views: { type: Number, default: 0 },       // Live file preview counter
+  downloads: { type: Number, default: 0 },   // Live file download counter
+  uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+}, { timestamps: true });
 
-const ResourceSchema = new Schema<IResource>(
-  {
-    title: { type: String, required: true, trim: true },
-    type: {
-      type: String,
-      enum: ['NOTES', 'PYQ', 'LAB', 'SLIDES', 'BOOK'],
-      default: 'NOTES',
-      required: true,
-    },
-    subject: { type: String, required: true, trim: true },
-    semester: { type: String, required: true, default: 'Sem 1' },
-    fileUrl: { type: String, default: '#' },
-    downloads: { type: Number, default: 0 },
+const resourceSchema = new mongoose.Schema({
+  department: { 
+    type: String, 
+    required: true
   },
-  { timestamps: true }
-);
+  semester: { 
+    type: Number, 
+    required: true, 
+    min: 1, 
+    max: 8 
+  },
+  subjectName: { 
+    type: String, 
+    required: true, 
+    trim: true 
+  },
+  subjectCode: { 
+    type: String, 
+    trim: true 
+  },
+  files: [resourceFileSchema]
+}, { timestamps: true });
 
-export const Resource =
-  mongoose.models.Resource ||
-  mongoose.model<IResource>('Resource', ResourceSchema);
+resourceSchema.index({ department: 1, semester: 1 });
+
+export const Resource = mongoose.models.Resource || mongoose.model('Resource', resourceSchema);

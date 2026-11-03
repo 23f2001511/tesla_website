@@ -1,32 +1,68 @@
+// src/proxy.ts
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { jwtVerify } from 'jose';
 
-export function proxy(request: NextRequest) {
-  const pathname = request.nextUrl.pathname;
+// Must match process.env.JWT_SECRET used in /api/auth/login/route.ts exactly.
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_development_only';
+const secretKey = new TextEncoder().encode(JWT_SECRET);
 
-  // Allow unauthorized notice page and public auth routes without redirect loops
-  if (
-    pathname.startsWith('/admin/unauthorized') ||
-    pathname.startsWith('/sign-in') ||
-    pathname.startsWith('/sign-up')
-  ) {
-    return NextResponse.next();
+// OfficeBearer shares the admin panel UI — its reduced powers are enforced by
+// each API route (role checks), not by hiding the pages.
+const ADMIN_PANEL_ROLES = ['Admin', 'President', 'OfficeBearer'];
+
+async function getRoleFromToken(token: string): Promise<string | null> {
+  try {
+    // jsonwebtoken (login route) and jose (here) both implement standard JWT —
+    // a token signed with jwt.sign() verifies fine with jose's jwtVerify(),
+    // as long as the secret and algorithm (default HS256 for both) match.
+    const { payload } = await jwtVerify(token, secretKey);
+    return (payload.role as string) || null;
+  } catch {
+    // Invalid signature, expired token, or malformed JWT.
+    return null;
+  }
+}
+
+export async function proxy(request: NextRequest) {
+  const token = request.cookies.get('token')?.value;
+
+  // ── Protect Admin Routes ──
+  if (request.nextUrl.pathname.startsWith('/admin')) {
+    if (!token) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
+
+    const role = await getRoleFromToken(token);
+    if (!role) {
+      // Token is invalid/expired — treat as logged out.
+      const response = NextResponse.redirect(new URL('/login', request.url));
+      response.cookies.delete('token');
+      return response;
+    }
+    if (!ADMIN_PANEL_ROLES.includes(role)) {
+      // Logged in, but not allowed in the admin panel — send them to their dashboard instead.
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
   }
 
-  // Check for Clerk session client cookie or standard auth
-  const clerkClientToken =
-    request.cookies.get('__client_uat')?.value ||
-    request.cookies.get('__session')?.value;
+  // ── Protect Dashboard Routes ──
+  if (request.nextUrl.pathname.startsWith('/dashboard')) {
+    if (!token) {
+      return NextResponse.redirect(new URL('/login', request.url));
+    }
 
-  const hasClerkKeys = Boolean(
-    process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
-      !process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY.includes('placeholder')
-  );
+    const role = await getRoleFromToken(token);
+    if (!role) {
+      const response = NextResponse.redirect(new URL('/login', request.url));
+      response.cookies.delete('token');
+      return response;
+    }
 
-  // If in production/configured with Clerk, redirect unauthenticated users to /sign-in
-  if (hasClerkKeys && pathname.startsWith('/admin')) {
-    if (!clerkClientToken) {
-      return NextResponse.redirect(new URL('/sign-in', request.url));
+    // The PI oversight dashboard is exclusive to the PI role (its API is also
+    // PI-gated — this just keeps other roles off the route entirely).
+    if (request.nextUrl.pathname.startsWith('/dashboard/pi') && role !== 'PI') {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
     }
   }
 
@@ -34,5 +70,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/admin/:path*', '/dashboard/:path*'],
 };

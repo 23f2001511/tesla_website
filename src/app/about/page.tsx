@@ -1,156 +1,209 @@
-'use client';
+import { Zap, Boxes, Wrench, Mic2, Trophy, Factory, FlaskConical, ArrowUpRight } from 'lucide-react';
+import { ScrollReveal, StaggerGroup, StaggerItem } from '@/components/ui/ScrollReveal';
 
-import { motion } from 'framer-motion';
-
-const pillars = [
-  {
-    id: 'P/01',
-    title: 'SHIP > SLIDES',
-    desc: 'Everything we teach ends in a working artifact — a repo, a robot, a writeup. No tutorial hell.',
-  },
-  {
-    id: 'P/02',
-    title: 'PEER-LED',
-    desc: 'Seniors teach juniors. Alumni mentor seniors. Knowledge flows down, pull requests flow up.',
-  },
-  {
-    id: 'P/03',
-    title: 'OPEN BY DEFAULT',
-    desc: 'Every workshop is recorded, every note is published, every project is open source.',
-  },
+const SOCIALS = [
+  { label: 'X (Twitter)', href: 'https://x.com/T_E_S_L_Aclub' },
+  { label: 'Instagram', href: 'https://www.instagram.com/tesla_nitp/' },
+  { label: 'LinkedIn', href: 'https://www.linkedin.com/company/tesla-club-nitp/' },
 ];
 
-const timeline = [
-  {
-    year: '2020',
-    tag: 'ORIGIN',
-    desc: 'Six students, one Discord server, zero budget. First weekend hack night.',
-  },
-  {
-    year: '2021',
-    tag: 'GROWTH',
-    desc: 'First national hackathon win. Membership crosses 150. Web division formed.',
-  },
-  {
-    year: '2023',
-    tag: 'EXPANSION',
-    desc: 'Robotics lab allocated. Research wing publishes first IEEE paper. HACK-TESLA born.',
-  },
-  {
-    year: '2026',
-    tag: 'TODAY',
-    desc: '500+ members, six tracks, 60+ tier-1 placements. Still student-run. Still free.',
-  },
-];
-
-const reasons = [
-  'Project teams with real deadlines',
-  '1:1 mentorship from alumni in industry',
-  'Priority seats at every hackathon',
-  'Interview & CP prep with seniors',
-  'Hardware lab & cloud credits',
-  'A network that outlasts college',
+const ACTIVITIES = [
+  { Icon: Wrench, title: 'Workshops', desc: 'Hands-on sessions that turn theory into working skills.' },
+  { Icon: Mic2, title: 'Seminars', desc: 'Talks and discussions on the newest developments in the field.' },
+  { Icon: Trophy, title: 'Competitions', desc: 'Contests that sharpen problem-solving under real pressure.' },
+  { Icon: Factory, title: 'Industrial Visits', desc: 'First-hand exposure to how the industry actually works.' },
+  { Icon: FlaskConical, title: 'Research Projects', desc: 'Collaborations among members that push the field forward.' },
 ];
 
 export default function AboutPage() {
   return (
-    <div className="bg-ink">
-      {/* Header */}
-      <section className="border-b border-line">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-14 sm:pt-24 sm:pb-20">
-          <div className="tag-mono-acid mb-4">// ABOUT US</div>
-          <h1 className="display text-5xl sm:text-7xl lg:text-8xl text-ivory">
-            BUILT BY
-            <br />
-            STUDENTS<span className="text-acid">.</span>
+    <div className="bg-ink overflow-x-hidden">
+      {/* ── Intro ──────────────────────────────────────────────────────── */}
+      <section className="bg-ink pt-20 sm:pt-28 pb-16">
+        <ScrollReveal className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="tag-mono-acid mb-3">{'// About'}</div>
+          <h1 className="display text-5xl sm:text-7xl lg:text-8xl leading-[0.95]">
+            Welcome to <span className="text-acid">T.E.S.L.A. Club</span>
           </h1>
-          <p className="mt-8 max-w-xl text-ivory-2 leading-relaxed">
-            Founded in 2020 to close the gap between what college teaches and
-            what industry expects. What started as six students and a Discord
-            server is now the largest technical community on campus — and still
-            completely student-run.
-          </p>
-        </div>
-      </section>
 
-      {/* Pillars */}
-      <section className="border-b border-line">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
-          <div className="tag-mono-acid mb-10">// OPERATING PRINCIPLES</div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-line border border-line">
-            {pillars.map((p, i) => (
-              <motion.div
-                key={p.id}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.08 }}
-                className="bg-ink p-8 min-h-[220px] flex flex-col"
-              >
-                <span className="tag-mono text-acid mb-4">[{p.id}]</span>
-                <h3 className="display text-2xl text-ivory mb-3">{p.title}</h3>
-                <p className="text-sm text-muted leading-relaxed mt-auto">{p.desc}</p>
-              </motion.div>
-            ))}
+          {/* Highlighted info strip: founded + PI */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-10">
+            <div className="card-brut rounded-xl px-6 py-4 flex items-center gap-4">
+              <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted shrink-0">
+                Established
+              </span>
+              <span className="display text-2xl text-acid">EST. 2021</span>
+            </div>
+            <div className="card-brut rounded-xl px-6 py-4 flex items-center gap-4">
+              <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted shrink-0">
+                Under the guidance of
+              </span>
+              <span className="display text-lg sm:text-xl text-ivory leading-tight">
+                Dr. Amitesh Sir <span className="text-muted text-sm font-mono tracking-[0.12em] uppercase">· PI</span>
+              </span>
+            </div>
           </div>
-        </div>
-      </section>
 
-      {/* Timeline */}
-      <section className="border-b border-line">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
-          <div className="tag-mono-acid mb-10">// TIMELINE</div>
-          <div className="border border-line">
-            {timeline.map((t, i) => (
-              <motion.div
-                key={t.year}
-                initial={{ opacity: 0 }}
-                whileInView={{ opacity: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.05 }}
-                className="grid grid-cols-1 sm:grid-cols-12 border-b border-line last:border-b-0 hover:bg-ink-2 transition-colors"
-              >
-                <div className="sm:col-span-2 border-b sm:border-b-0 sm:border-r border-line px-6 py-6">
-                  <div className="display text-3xl text-ivory">{t.year}</div>
-                </div>
-                <div className="sm:col-span-2 border-b sm:border-b-0 sm:border-r border-line px-6 py-6 flex items-center">
-                  <span className="tag-mono-acid">{t.tag}</span>
-                </div>
-                <div className="sm:col-span-8 px-6 py-6 text-sm text-ivory-2 leading-relaxed flex items-center">
-                  {t.desc}
-                </div>
-              </motion.div>
-            ))}
+          <div className="mt-10 space-y-6 text-base sm:text-lg text-ivory-2 leading-relaxed">
+            <p>
+              Welcome to the official website of T.E.S.L.A. Club — the premier club for
+              Electrical Engineering enthusiasts and professionals. Founded in 2021 by a
+              group of bright-minded seniors, under the guidance of our esteemed PI,
+              Dr. Amitesh Sir, T.E.S.L.A. Club is dedicated to fostering public speaking,
+              teamwork, technical excellence, and management skills among its members.
+            </p>
+            <p>
+              Our primary aim is to provide a platform for seniors, juniors, and alumni to
+              come together, learn, grow, and secure rewarding careers in the field of
+              Electrical Engineering.
+            </p>
+            <p>
+              The establishment of T.E.S.L.A. Club was a long-standing demand of our seniors
+              and a necessity for our department. With the club&apos;s official recognition, we
+              have been able to realize our vision of creating a space where students and
+              professionals can connect, collaborate, and thrive.
+            </p>
           </div>
-        </div>
+        </ScrollReveal>
       </section>
 
-      {/* Why join */}
-      <section>
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-            <div className="lg:col-span-5">
-              <div className="tag-mono-acid mb-3">// MEMBERSHIP</div>
-              <h2 className="display text-4xl sm:text-5xl text-ivory">
-                WHY JOIN?
-              </h2>
-              <p className="text-sm text-muted leading-relaxed mt-4 max-w-sm">
-                Free forever. Open to every branch and year. All we ask is that
-                you show up and build.
+      {/* ── Our Focus Areas ────────────────────────────────────────────── */}
+      <section className="bg-ink-2 border-y border-line py-20">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+          <ScrollReveal className="mb-12 max-w-2xl">
+            <div className="tag-mono-acid mb-3">{'// Focus'}</div>
+            <h2 className="display text-3xl sm:text-5xl">
+              Our focus <span className="text-acid">areas</span>
+            </h2>
+            <p className="text-ivory-2 mt-4 text-sm sm:text-base leading-relaxed">
+              At T.E.S.L.A. Club, we concentrate on two main domains — each one explored
+              deeply, from fundamentals to the cutting edge.
+            </p>
+          </ScrollReveal>
+
+          <StaggerGroup className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <StaggerItem className="h-full">
+            <div className="card-brut rounded-xl p-8 hover:-translate-y-0.5 transition-transform">
+              <span className="chip bg-acid/10 text-acid mb-5">
+                <Zap className="w-5 h-5" />
+              </span>
+              <h3 className="display text-2xl">Electrical Engineering</h3>
+              <p className="text-sm sm:text-base text-ivory-2 leading-relaxed mt-3">
+                Our members have a deep interest in exploring the latest advancements in
+                electrical engineering — the discipline at the heart of everything the club
+                builds, breaks, and rebuilds.
               </p>
             </div>
-            <div className="lg:col-span-7 grid grid-cols-1 sm:grid-cols-2 gap-px bg-line border border-line">
-              {reasons.map((r, i) => (
-                <div key={i} className="bg-ink px-5 py-4 flex items-center gap-4">
-                  <span className="font-mono text-xs text-acid">
-                    {String(i + 1).padStart(2, '0')}
-                  </span>
-                  <span className="text-sm text-ivory-2">{r}</span>
-                </div>
+            </StaggerItem>
+
+            <StaggerItem className="h-full">
+            <div className="card-brut rounded-xl p-8 hover:-translate-y-0.5 transition-transform">
+              <span className="chip bg-acid/10 text-acid mb-5">
+                <Boxes className="w-5 h-5" />
+              </span>
+              <h3 className="display text-2xl">Blockchain Technology</h3>
+              <p className="text-sm sm:text-base text-ivory-2 leading-relaxed mt-3">
+                We harness the potential of blockchain to revolutionize various industries —
+                understanding the technology that is reshaping how the world transacts and
+                trusts.
+              </p>
+            </div>
+            </StaggerItem>
+          </StaggerGroup>
+
+          {/* Collaborations strip */}
+          <ScrollReveal className="card-brut rounded-xl px-6 py-5 mt-4 flex flex-col sm:flex-row sm:items-center gap-4">
+            <span className="font-mono text-[10px] uppercase tracking-[0.16em] text-muted shrink-0">
+              Collaborations with
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {['Algorand', 'Near Blockchain'].map((name) => (
+                <span
+                  key={name}
+                  className="chip border border-acid/40 text-acid font-mono text-xs uppercase tracking-[0.14em]"
+                >
+                  {name}
+                </span>
               ))}
             </div>
-          </div>
+            <span className="text-xs text-ivory-2 leading-relaxed sm:ml-auto sm:max-w-md">
+              These tech-giant partnerships give our members exposure to cutting-edge
+              technologies and industry trends.
+            </span>
+          </ScrollReveal>
         </div>
+      </section>
+
+      {/* ── What We Do ─────────────────────────────────────────────────── */}
+      <section className="bg-ink py-20">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+          <ScrollReveal className="mb-12 max-w-2xl">
+            <div className="tag-mono-acid mb-3">{'// Activities'}</div>
+            <h2 className="display text-3xl sm:text-5xl">
+              What we <span className="text-acid">do</span>
+            </h2>
+            <p className="text-ivory-2 mt-4 text-sm sm:text-base leading-relaxed">
+              Our club activities encompass a wide range of initiatives. Through these
+              engagements we enhance our members&apos; technical knowledge, problem-solving
+              skills, and industry-relevant expertise — and we encourage and facilitate
+              research projects and collaborations among members to promote innovation and
+              contribute to the advancement of the field.
+            </p>
+          </ScrollReveal>
+
+          <StaggerGroup className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
+            {ACTIVITIES.map(({ Icon, title, desc }) => (
+              <StaggerItem key={title} className="h-full">
+                <div className="card-brut rounded-xl p-6 flex flex-col h-full">
+                  <Icon className="w-5 h-5 text-acid mb-4" />
+                  <h3 className="display text-lg">{title}</h3>
+                  <p className="text-xs text-muted leading-relaxed mt-2">{desc}</p>
+                </div>
+              </StaggerItem>
+            ))}
+          </StaggerGroup>
+        </div>
+      </section>
+
+      {/* ── Community ──────────────────────────────────────────────────── */}
+      <section className="bg-ink-2 border-y border-line py-20">
+        <ScrollReveal className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="tag-mono-acid mb-3">{'// Community'}</div>
+          <h2 className="display text-3xl sm:text-5xl mb-8">
+            A vibrant <span className="text-acid">community</span>
+          </h2>
+          <p className="text-base sm:text-lg text-ivory-2 leading-relaxed">
+            T.E.S.L.A. Club is a vibrant community of like-minded individuals driven by a
+            common goal. Whether you are a seasoned professional, a curious undergraduate,
+            or an aspiring researcher — the club offers a supportive environment to develop
+            skills, expand networks, and shape the future.
+          </p>
+        </ScrollReveal>
+      </section>
+
+      {/* ── Social links ───────────────────────────────────────────────── */}
+      <section className="bg-ink py-20">
+        <ScrollReveal className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="tag-mono-acid mb-3">{'// Find us'}</div>
+          <h2 className="display text-3xl sm:text-4xl mb-3">Follow the current</h2>
+          <p className="text-sm text-ivory-2 mb-8">
+            Events, wins and behind-the-scenes — across every platform.
+          </p>
+          <div className="flex flex-wrap justify-center gap-3">
+            {SOCIALS.map((s) => (
+              <a
+                key={s.label}
+                href={s.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="card-brut rounded-md px-6 py-3 inline-flex items-center gap-2 text-sm text-ivory hover:text-acid hover:border-acid transition-colors"
+              >
+                {s.label}
+                <ArrowUpRight className="w-4 h-4" />
+              </a>
+            ))}
+          </div>
+        </ScrollReveal>
       </section>
     </div>
   );

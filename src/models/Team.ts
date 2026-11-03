@@ -16,6 +16,12 @@ const teamSchema = new mongoose.Schema(
       default: ''
     },
 
+    // Team Cover Image (URL) — optional, used by the admin team cards
+    coverImage: {
+      type: String,
+      default: ''
+    },
+
     // Team Lead
     lead: {
       type: mongoose.Schema.Types.ObjectId,

@@ -1,137 +1,189 @@
 'use client';
 
-import { motion } from 'framer-motion';
-import { useState, useEffect } from 'react';
-import { ArrowUpRight } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import type { KeyboardEvent, MouseEvent } from 'react';
+import { Search } from 'lucide-react';
+import { useApi } from '@/lib/api';
+import { Avatar, EmptyState, ErrorState, SkeletonGrid } from '@/components/ui/States';
+import { ScrollReveal, StaggerGroup, StaggerItem } from '@/components/ui/ScrollReveal';
 
-const fallbackTeam = [
-  { id: '1', name: 'Aarav Mehta', role: 'President', category: 'Core', tag: 'PRS' },
-  { id: '2', name: 'Diya Sharma', role: 'Vice President', category: 'Core', tag: 'VPR' },
-  { id: '3', name: 'Rohan Verma', role: 'Technical Lead', category: 'Core', tag: 'TEC' },
-  { id: '4', name: 'Ishaan Kapoor', role: 'Operations Lead', category: 'Core', tag: 'OPS' },
-  { id: '5', name: 'Dr. S. Rao', role: 'Faculty Advisor', category: 'Faculty', tag: 'FAC' },
-  { id: '6', name: 'Ananya Singh', role: 'Design Lead', category: 'Executive', tag: 'DES' },
-  { id: '7', name: 'Kabir Anand', role: 'Events Lead', category: 'Executive', tag: 'EVT' },
-  { id: '8', name: 'Meera Iyer', role: 'Outreach Lead', category: 'Executive', tag: 'OUT' },
-];
+const ROLE_TABS = ['all', 'Admin', 'PI', 'President', 'OfficeBearer', 'TeamLeader', 'TeamMember'] as const;
+const PAGE_SIZE = 8;
 
-const roles = ['Core', 'Executive', 'Faculty'];
+type Member = {
+  id: string;
+  name: string;
+  role?: string;
+  designation?: string;
+  team?: string;
+  batch?: number;
+  year?: string;
+  bio?: string;
+  profileImage?: string;
+  portfolio?: string;
+  skills?: string[];
+  socialLinks?: { linkedin?: string; github?: string; instagram?: string; twitter?: string };
+};
 
 export default function TeamPage() {
-  const [filter, setFilter] = useState('Core');
-  const [team, setTeam] = useState<any[]>(fallbackTeam);
+  const [role, setRole] = useState<string>('all');
+  const [search, setSearch] = useState('');
+  const [visible, setVisible] = useState(PAGE_SIZE);
+  const router = useRouter();
 
-  useEffect(() => {
-    fetch('/api/team')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.members && data.members.length > 0) {
-          setTeam(data.members);
-        }
-      })
-      .catch((err) => console.warn('Using fallback team data:', err));
-  }, []);
+  // Whole card navigates to the detail page. Nested <a> social buttons stop
+  // propagation so they keep working independently, and keyboard users get
+  // Enter/Space via the role="link" + tabIndex pattern (an <a> can't wrap the
+  // card because those social links are block-level children of it).
+  const openMember = (id: string) => router.push(`/team/${id}`);
+  const onCardKey = (e: KeyboardEvent<HTMLDivElement>, id: string) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      openMember(id);
+    }
+  };
+  const stopNav = (e: MouseEvent<HTMLElement>) => e.stopPropagation();
 
-  const filtered = team.filter((m) => m.category === filter);
+  const { data, error, isLoading, mutate } = useApi<{ members: Member[] }>('/api/team');
+
+  const members = useMemo(() => data?.members || [], [data]);
+  const filtered = useMemo(
+    () =>
+      members.filter((m) => {
+        if (role !== 'all' && m.role !== role) return false;
+        if (!search.trim()) return true;
+        const q = search.toLowerCase();
+        return (
+          m.name?.toLowerCase().includes(q) ||
+          m.designation?.toLowerCase().includes(q) ||
+          m.team?.toLowerCase().includes(q)
+        );
+      }),
+    [members, role, search]
+  );
+  const shown = filtered.slice(0, visible);
 
   return (
     <div className="bg-ink min-h-screen">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-20 sm:pt-24">
-        {/* Header */}
-        <div className="pb-10 mb-10 border-b border-line">
-          <div className="tag-mono-acid mb-3">// ROSTER</div>
-          <h1 className="display text-5xl sm:text-7xl text-ivory">
-            THE PEOPLE<span className="text-acid">.</span>
-          </h1>
-          <p className="mt-6 max-w-md text-ivory-2 text-sm leading-relaxed">
-            Volunteers, not managers. Everyone below ships code, designs, or
-            hardware alongside running the club.
+      <section className="border-b border-line bg-terminal">
+        <ScrollReveal className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="tag-mono-acid mb-3">{'// THE TEAM'}</div>
+          <h1 className="display text-4xl sm:text-5xl">People behind TESLA</h1>
+          <p className="text-ivory-2 mt-3 max-w-2xl text-sm sm:text-base">
+            The students and faculty driving every project, event and win. Live from the club database.
           </p>
-        </div>
+        </ScrollReveal>
+      </section>
 
-        {/* Filter */}
-        <div className="flex flex-wrap gap-2 mb-10">
-          {roles.map((r) => (
-            <button
-              key={r}
-              onClick={() => setFilter(r)}
-              className={`px-5 py-2 font-mono text-[11px] tracking-[0.14em] uppercase border transition-colors ${
-                filter === r
-                  ? 'border-acid text-acid bg-acid/10'
-                  : 'border-line text-muted hover:text-ivory hover:border-line-2'
-              }`}
-            >
-              {r}
-            </button>
-          ))}
-        </div>
-
-        {/* Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-line border border-line">
-          {filtered.map((m, i) => (
-            <motion.div
-              key={m._id || m.id || i}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: i * 0.05 }}
-              className="group bg-ink hover:bg-ink-2 transition-colors p-6 flex flex-col min-h-[280px]"
-            >
-              <div className="flex items-start justify-between mb-8">
-                <span className="font-mono text-[10px] text-muted">
-                  [{m.tag || 'MEM'}]
-                </span>
-                {m.linkedin ? (
-                  <a
-                    href={m.linkedin}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-muted group-hover:text-acid transition-colors"
-                  >
-                    <ArrowUpRight className="w-4 h-4" />
-                  </a>
-                ) : (
-                  <ArrowUpRight className="w-4 h-4 text-muted group-hover:text-acid transition-colors" />
-                )}
-              </div>
-
-              {/* Monogram or Avatar */}
-              <div className="w-20 h-20 border border-line-2 flex items-center justify-center mb-6 group-hover:border-acid group-hover:bg-acid transition-colors overflow-hidden">
-                {m.avatar ? (
-                  <img src={m.avatar} alt={m.name} className="w-full h-full object-cover" />
-                ) : (
-                  <span className="display text-3xl text-ivory group-hover:text-acid-ink transition-colors">
-                    {m.name
-                      .split(' ')
-                      .map((n: string) => n[0])
-                      .join('')
-                      .slice(0, 2)}
-                  </span>
-                )}
-              </div>
-
-              <h3 className="display text-xl text-ivory leading-tight">
-                {m.name}
-              </h3>
-              <div className="tag-mono-acid mt-2">{m.role.toUpperCase()}</div>
-
-              {m.linkedin ? (
-                <a
-                  href={m.linkedin}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="tag-mono mt-auto pt-4 group-hover:text-ivory-2 transition-colors flex items-center gap-1"
+      <section className="pb-24">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center py-6 border-b border-line mb-8">
+            <div className="flex flex-wrap gap-1.5 flex-1">
+              {ROLE_TABS.map((r) => (
+                <button
+                  key={r}
+                  onClick={() => { setRole(r); setVisible(PAGE_SIZE); }}
+                  className={`px-3 py-1.5 rounded-md text-xs font-mono uppercase tracking-[0.12em] border transition-colors ${
+                    role === r
+                      ? 'bg-acid text-acid-ink border-acid font-bold'
+                      : 'border-line text-ivory-2 hover:border-acid hover:text-acid'
+                  }`}
                 >
-                  VIEW PROFILE →
-                </a>
-              ) : (
-                <div className="tag-mono mt-auto pt-4 group-hover:text-ivory-2 transition-colors">
-                  CORE VOLUNTEER
+                  {r === 'all' ? 'All' : r}
+                </button>
+              ))}
+            </div>
+            <div className="relative sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted pointer-events-none" />
+              <input
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setVisible(PAGE_SIZE); }}
+                placeholder="Search name, team, skill..."
+                className="input-brut rounded-md !pl-9"
+              />
+            </div>
+          </div>
+
+          {isLoading ? (
+            <SkeletonGrid count={8} />
+          ) : error ? (
+            <ErrorState
+              title="Unable to load team data"
+              message="Please check your connection and try again."
+              onRetry={() => mutate()}
+            />
+          ) : filtered.length === 0 ? (
+            <EmptyState title="No members found" hint="Try a different filter or search term." />
+          ) : (
+            <>
+              <StaggerGroup className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {shown.map((member) => (
+                  <StaggerItem key={member.id} className="h-full">
+                  <div
+                    role="link"
+                    tabIndex={0}
+                    aria-label={`View profile of ${member.name}`}
+                    onClick={() => openMember(member.id)}
+                    onKeyDown={(e) => onCardKey(e, member.id)}
+                    className="card-brut rounded-xl p-6 flex flex-col items-center text-center h-full hover:-translate-y-0.5 transition-transform cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-acid focus-visible:ring-offset-2 focus-visible:ring-offset-ink"
+                  >
+                    <Avatar src={member.profileImage} name={member.name} />
+                    <h3 className="display text-lg mt-4">{member.name}</h3>
+                    <p className="font-mono text-[11px] tracking-[0.14em] uppercase text-acid mt-1">
+                      {member.designation || member.role}
+                    </p>
+                    <p className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted mt-1">
+                      {[member.team, member.batch ? `Batch ${member.batch}` : member.year]
+                        .filter(Boolean)
+                        .join(' · ') || '\u00A0'}
+                    </p>
+                    {member.bio && <p className="text-xs text-ivory-2 mt-3 line-clamp-3">{member.bio}</p>}
+
+                    {member.skills && member.skills.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 justify-center mt-3">
+                        {member.skills.slice(0, 3).map((s: string) => (
+                          <span key={s} className="chip border border-line text-muted !py-0.5 !px-2 !text-[10px]">
+                            {s}
+                          </span>
+                        ))}
+                        {member.skills.length > 3 && (
+                          <span className="chip border border-acid/50 text-acid !py-0.5 !px-2 !text-[10px]">
+                            +{member.skills.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {(member.socialLinks?.linkedin || member.socialLinks?.github || member.portfolio) && (
+                      <div className="flex gap-2 mt-auto pt-5">
+                        {member.socialLinks?.linkedin && (
+                          <a href={member.socialLinks.linkedin} target="_blank" rel="noopener noreferrer" aria-label="LinkedIn" onClick={stopNav} className="w-8 h-8 rounded-md border border-line flex items-center justify-center hover:border-acid hover:text-acid text-ivory-2 transition-colors text-xs font-mono">in</a>
+                        )}
+                        {member.socialLinks?.github && (
+                          <a href={member.socialLinks.github} target="_blank" rel="noopener noreferrer" aria-label="GitHub" onClick={stopNav} className="w-8 h-8 rounded-md border border-line flex items-center justify-center hover:border-acid hover:text-acid text-ivory-2 transition-colors text-xs font-mono">{'</>'}</a>
+                        )}
+                        {member.portfolio && (
+                          <a href={member.portfolio} target="_blank" rel="noopener noreferrer" aria-label="Portfolio" onClick={stopNav} className="w-8 h-8 rounded-md border border-line flex items-center justify-center hover:border-acid hover:text-acid text-ivory-2 transition-colors text-xs font-mono">@</a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  </StaggerItem>
+                ))}
+              </StaggerGroup>
+
+              {filtered.length > visible && (
+                <div className="text-center mt-10">
+                  <button onClick={() => setVisible((v) => v + PAGE_SIZE)} className="btn-brut">
+                    Load more ({filtered.length - visible} remaining)
+                  </button>
                 </div>
               )}
-            </motion.div>
-          ))}
+            </>
+          )}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

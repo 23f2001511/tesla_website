@@ -1,185 +1,97 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { ArrowUpRight } from 'lucide-react';
+import { useApi } from '@/lib/api';
+import type { PublicEventDTO } from '@/types/api';
 
-const fallbackTracks = [
-  {
-    trackId: 'T1',
-    name: 'AI & GenAI Agents',
-    prize: '₹2.5L',
-    desc: 'LLM agents, multimodal vision, autonomous systems solving real problems.',
-  },
-  {
-    trackId: 'T2',
-    name: 'Web3 & Cloud',
-    prize: '₹2.0L',
-    desc: 'Distributed systems, smart contracts, high-performance microservices.',
-  },
-  {
-    trackId: 'T3',
-    name: 'Hardware & Robotics',
-    prize: '₹1.8L',
-    desc: 'Microcontroller prototypes, sensory IoT, autonomous robotics.',
-  },
-  {
-    trackId: 'T4',
-    name: 'Open Innovation',
-    prize: '₹1.5L',
-    desc: 'No domain limits. Build for climate, health, or education.',
-  },
-];
+import { Calendar, MapPin, ArrowRight } from 'lucide-react';
+import { ScrollReveal } from '@/components/ui/ScrollReveal';
+
+function fmtDate(d: string | Date) {
+  if (!d) return 'TBA';
+  const date = new Date(d);
+  return isNaN(date.getTime())
+    ? 'TBA'
+    : date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
 
 export function FeaturedEvent() {
-  const [active, setActive] = useState(0);
-  const [flagship, setFlagship] = useState<any>({
-    edition: "HACK-TESLA '26",
-    tagline: '36 HOURS. NATIONAL LEVEL.\n₹7.8L+ PRIZE POOL.',
-    headline: 'BUILD. BREAK. SHIP.',
-    description:
-      'Bring a laptop, a team, and 36 hours of stubbornness. Mentors from Google, Microsoft and top startups will be on the floor.',
-    dates: 'OCT 24–26, 2026',
-    format: '36-HOUR SPRINT',
-    venue: 'AUDITORIUM + ONLINE',
-    teamSize: '2–4 MEMBERS',
-    prizePool: '₹7.8L+',
-    registrationLink: '/events',
-    tracks: fallbackTracks,
-  });
-
-  useEffect(() => {
-    fetch('/api/flagship')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && data.flagship) {
-          setFlagship(data.flagship);
-        }
-      })
-      .catch((err) => console.warn('Using fallback flagship:', err));
-  }, []);
-
-  const tracks = flagship.tracks && flagship.tracks.length > 0 ? flagship.tracks : fallbackTracks;
-  const current = tracks[active] || tracks[0] || fallbackTracks[0];
-
-  const meta: Array<[string, string]> = [
-    ['DATE', flagship.dates || 'OCT 24–26, 2026'],
-    ['FORMAT', flagship.format || '36-HOUR SPRINT'],
-    ['VENUE', flagship.venue || 'AUDITORIUM + ONLINE'],
-    ['TEAM', flagship.teamSize || '2–4 MEMBERS'],
-  ];
+  // Live: the next upcoming approved event from the backend. Falls back to the
+  // CodeStorm banner while loading / when the calendar is empty.
+  const { data, isLoading } = useApi<{ events: PublicEventDTO[] }>('/api/events?when=upcoming&limit=1');
+  const event = data?.events?.[0];
 
   return (
-    <section className="relative bg-ink border-b border-line py-20 sm:py-28">
+    <section className="relative bg-ink py-16 sm:py-20">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6 pb-10 mb-12 border-b border-line">
-          <div>
-            <div className="tag-mono-acid mb-3">// FLAGSHIP — 2026</div>
-            <h2 className="display text-4xl sm:text-5xl lg:text-7xl text-ivory">
-              {flagship.edition}
-            </h2>
-          </div>
-          <div className="tag-mono sm:text-right whitespace-pre-line text-acid">
-            {flagship.tagline}
-          </div>
-        </div>
+        <ScrollReveal>
+        <div className="relative rounded-2xl border border-acid/30 bg-ink-2 overflow-hidden">
+          <div className="absolute -top-px -left-px w-3 h-3 border-t border-l border-acid" />
+          <div className="absolute -bottom-px -right-px w-3 h-3 border-b border-r border-acid" />
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-          {/* Track list — terminal-style */}
-          <div className="lg:col-span-5">
-            <div className="border border-line">
-              <div className="border-b border-line bg-ink-2 px-4 py-2.5 flex items-center justify-between">
-                <span className="tag-mono">SELECT_TRACK.SH</span>
-                <span className="flex gap-1.5">
-                  <span className="w-2 h-2 border border-line-2" />
-                  <span className="w-2 h-2 border border-line-2" />
-                  <span className="w-2 h-2 bg-acid" />
+          <div className="relative grid grid-cols-1 lg:grid-cols-12 gap-8 items-center p-8 sm:p-12 lg:p-14">
+            <div className="lg:col-span-7">
+              <div className="tag-mono-acid mb-4">{'// Featured Event'}</div>
+              {event ? (
+                <>
+                  <h2 className="display text-3xl sm:text-5xl leading-[1.05]">
+                    {event.title}
+                  </h2>
+                  <p className="mt-5 text-sm sm:text-base text-ivory-2 leading-relaxed max-w-xl line-clamp-3">
+                    {event.description}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2 className="display text-3xl sm:text-5xl leading-[1.05]">
+                    <span className="text-acid">CodeStorm</span> Hackathon
+                  </h2>
+                  <p className="mt-5 text-sm sm:text-base text-ivory-2 leading-relaxed max-w-xl">
+                    48 hours. Build something real. Ship it in front of mentors and recruiters.
+                    Open to all years and branches — teams of 1–4.
+                  </p>
+                </>
+              )}
+
+              <div className="mt-6 flex flex-wrap gap-4 font-mono text-[12px] uppercase tracking-[0.12em] text-muted">
+                <span className="inline-flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5 text-acid" />
+                  {event ? fmtDate(event.date) : 'TBA — Spring Semester'}
+                </span>
+                <span className="inline-flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-acid" />
+                  {event ? event.venue : 'EE Lab · NIT Patna'}
                 </span>
               </div>
-              {tracks.map((t: any, i: number) => {
-                const isActive = i === active;
-                return (
-                  <button
-                    key={t.trackId || i}
-                    onClick={() => setActive(i)}
-                    className={`w-full text-left px-4 sm:px-5 py-5 border-b border-line last:border-b-0 transition-colors flex items-center justify-between gap-4 ${
-                      isActive
-                        ? 'bg-acid text-acid-ink font-bold'
-                        : 'bg-ink hover:bg-ink-2 text-ivory'
-                    }`}
-                  >
-                    <div>
-                      <div
-                        className={`font-mono text-[10px] tracking-[0.14em] uppercase mb-1 ${
-                          isActive ? 'text-acid-ink/80' : 'text-muted'
-                        }`}
-                      >
-                        [{t.trackId}] — PRIZE {t.prize}
-                      </div>
-                      <div className="display text-lg sm:text-xl leading-tight">
-                        {t.name}
-                      </div>
-                    </div>
-                    <ArrowUpRight
-                      className={`w-4 h-4 shrink-0 ${
-                        isActive ? 'text-acid-ink' : 'text-muted'
-                      }`}
-                    />
-                  </button>
-                );
-              })}
+
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Link href="/events" className="btn-acid">
+                  Register <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link href="/about" className="btn-brut">
+                  Event Brief
+                </Link>
+              </div>
             </div>
-          </div>
 
-          {/* Detail panel */}
-          <div className="lg:col-span-7">
-            <div className="border border-line corner-marks bg-ink-2 p-6 sm:p-10 h-full flex flex-col">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={current.trackId || current.name}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.25 }}
-                  className="flex flex-col h-full"
-                >
-                  <div className="tag-mono-acid mb-4">// {current.name.toUpperCase()}</div>
-                  <h3 className="display text-3xl sm:text-5xl text-ivory leading-[0.95] mb-6">
-                    {flagship.headline || 'BUILD. BREAK. SHIP.'}
-                  </h3>
-                  <p className="text-ivory-2 text-sm sm:text-base leading-relaxed max-w-xl mb-8">
-                    {current.desc || flagship.description}
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-px bg-line border border-line mb-8">
-                    {meta.map(([k, v]) => (
-                      <div key={k} className="bg-ink p-4">
-                        <div className="tag-mono mb-1">{k}</div>
-                        <div className="font-mono text-xs sm:text-sm text-ivory font-bold">
-                          {v}
-                        </div>
-                      </div>
-                    ))}
+            <div className="lg:col-span-5">
+              <div className="relative rounded-xl overflow-hidden border border-line min-h-[240px] lg:min-h-[320px] bg-gradient-to-br from-acid/20 via-ink-2 to-ink-3">
+                <div className="absolute inset-0 bg-terminal opacity-40 pointer-events-none" />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="display text-6xl sm:text-7xl text-acid leading-none">
+                      48
+                    </div>
+                    <div className="font-mono text-[11px] tracking-[0.18em] uppercase text-muted mt-2">
+                      Hours · Build · Ship
+                    </div>
                   </div>
-
-                  <div className="flex flex-wrap gap-3 mt-auto pt-4">
-                    <Link
-                      href={flagship.registrationLink || '/events'}
-                      className="btn-acid"
-                    >
-                      Register Now <ArrowUpRight className="w-4 h-4" />
-                    </Link>
-                    <Link href="/about" className="btn-brut">
-                      Rules & FAQ
-                    </Link>
-                  </div>
-                </motion.div>
-              </AnimatePresence>
+                </div>
+              </div>
             </div>
           </div>
         </div>
+        </ScrollReveal>
       </div>
     </section>
   );

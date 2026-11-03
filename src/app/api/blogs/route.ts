@@ -1,105 +1,92 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import type { QueryFilter } from 'mongoose';
 import connectDB from '@/lib/db';
 import { Blog } from '@/models/Blog';
-import { User } from '@/models/User';
-import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
+import type { IBlog, IBlogPopulated } from '@/types/models';
+import { requireAuth } from '@/lib/auth';
 
-const JWT_SECRET =
-  process.env.JWT_SECRET || 'fallback_secret_for_development_only';
+import { getErrorMessage } from '@/lib/errors';
+export const dynamic = 'force-dynamic';
 
-export async function GET(req: Request) {
+// ─── GET: public feed of Published blogs (+ author name) ─────────────────────
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
+    await connectDB();
+    const { searchParams } = new URL(request.url);
     const search = searchParams.get('search');
     const category = searchParams.get('category');
+    const limit = Math.min(Number(searchParams.get('limit')) || 0, 100);
 
-    await connectDB();
-
-    const query: any = { status: 'Published' };
-    if (category && category !== 'all') {
-      query.category = category;
-    }
+    const filter: QueryFilter<IBlog> = { status: 'Published' };
+    if (category && category !== 'all') filter.category = category;
     if (search) {
-      query.$or = [
+      filter.$or = [
         { title: { $regex: search, $options: 'i' } },
-        { author: { $regex: search, $options: 'i' } },
         { content: { $regex: search, $options: 'i' } },
+        { tags: { $regex: search, $options: 'i' } },
       ];
     }
 
-    const blogs = await Blog.find(query).sort({ createdAt: -1 });
-    return NextResponse.json({ success: true, blogs });
-  } catch (error: any) {
-    console.error('Public Blogs API Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    const query = Blog.find(filter)
+      .populate('author', 'name role profileImage')
+      .select('title content category coverImage tags isFeatured views likes createdAt')
+      .sort({ isFeatured: -1, createdAt: -1 })
+      .lean<IBlogPopulated[]>();
+    const blogs = limit ? await query.limit(limit) : await query;
+
+    return NextResponse.json({
+      success: true,
+      blogs: blogs.map((b) => ({
+        ...b,
+        id: String(b._id),
+        excerpt: (b.content || '').replace(/[#*_>`]/g, '').slice(0, 160),
+      })),
+    });
+  } catch (error){
+    return NextResponse.json({ success: false, error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
-export async function POST(req: Request) {
+// Members may only create blogs in these states.
+const MEMBER_STATUSES = ['Draft', 'Pending'] as const;
+
+// ─── POST: member creates a blog (Draft) or submits for review (Pending) ─────
+export async function POST(request: NextRequest) {
   try {
+    const { payload, response: authError } = await requireAuth();
+    if (authError) return authError;
+
     await connectDB();
+    const body = await request.json();
+    const { title, content, category, coverImage, tags, status } = body;
 
-    const cookieStore = await cookies();
-    const token = cookieStore.get('token')?.value;
-    if (!token) {
+    if (!title || !content || !category) {
       return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    let decoded: { userId: string };
-    try {
-      decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-    } catch {
-      return NextResponse.json(
-        { success: false, message: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const body = await req.json();
-    if (!body.title || !body.content) {
-      return NextResponse.json(
-        { success: false, error: 'Title and content are required' },
+        { success: false, error: 'Title, content and category are required.' },
         { status: 400 }
       );
     }
 
-    const user = await User.findById(decoded.userId);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, message: 'User not found' },
-        { status: 404 }
-      );
-    }
+    const finalStatus = MEMBER_STATUSES.includes(status) ? status : 'Draft';
 
-    const slug =
-      body.slug ||
-      body.title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)+/g, '');
+    const cleanTags = Array.isArray(tags)
+      ? tags
+      : tags?.split(',').map((t: string) => t.trim()).filter(Boolean) || [];
 
     const blog = await Blog.create({
-      ...body,
-      slug,
-      author: body.author || user.name || 'Tesla Team',
-      authorRole: body.authorRole || user.designation || 'Member',
-      authorId: user._id,
-      publishedDate:
-        body.publishedDate ||
-        new Date().toLocaleDateString('en-GB', {
-          day: '2-digit',
-          month: '2-digit',
-          year: '2-digit',
-        }),
+      title,
+      content,
+      category,
+      coverImage: coverImage || '',
+      tags:       cleanTags,
+      status:     finalStatus,
+      author:     payload!.userId,
+      views:      0,
+      likes:      [],
     });
 
     return NextResponse.json({ success: true, blog }, { status: 201 });
-  } catch (error: any) {
-    console.error('Create Blog API Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error){
+    return NextResponse.json({ success: false, error: getErrorMessage(error) }, { status: 500 });
   }
 }

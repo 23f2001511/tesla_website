@@ -1,55 +1,34 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import type { QueryFilter } from 'mongoose';
 import connectDB from '@/lib/db';
 import { Resource } from '@/models/Resource';
+import type { IResource } from '@/types/models';
 
-export async function GET(req: Request) {
+import { getErrorMessage } from '@/lib/errors';
+export const dynamic = 'force-dynamic';
+
+// ─── Public (read-only) resources library ────────────────────────────────────
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const semester = searchParams.get('semester');
-    const type = searchParams.get('type');
-    const search = searchParams.get('search');
-
     await connectDB();
+    const { searchParams } = new URL(request.url);
+    const semester = searchParams.get('semester'); // 'All' | '1'..'8'
+    const department = searchParams.get('department');
 
-    const query: any = {};
-    if (semester && semester !== 'All') {
-      query.semester = semester;
-    }
-    if (type && type !== 'all') {
-      query.type = type.toUpperCase();
-    }
-    if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { subject: { $regex: search, $options: 'i' } },
-      ];
-    }
+    const filter: QueryFilter<IResource> = {};
+    if (semester && semester !== 'All') filter.semester = Number(semester);
+    if (department && department !== 'All') filter.department = department;
 
-    const resources = await Resource.find(query).sort({ semester: 1, title: 1 });
-    return NextResponse.json({ success: true, resources });
-  } catch (error: any) {
-    console.error('Resources GET API Error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
-}
+    const [resources, departments] = await Promise.all([
+      Resource.find(filter)
+        .select('department semester subjectName subjectCode files')
+        .sort({ semester: 1, subjectName: 1 })
+        .lean(),
+      Resource.distinct('department'),
+    ]);
 
-// Increment downloads on GET /api/resources?downloadId=...
-export async function POST(req: Request) {
-  try {
-    const { id } = await req.json();
-    if (!id) {
-      return NextResponse.json({ success: false, error: 'Resource ID required' }, { status: 400 });
-    }
-
-    await connectDB();
-    const updated = await Resource.findByIdAndUpdate(
-      id,
-      { $inc: { downloads: 1 } },
-      { new: true }
-    );
-
-    return NextResponse.json({ success: true, resource: updated });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, resources, departments: departments.sort() });
+  } catch (error){
+    return NextResponse.json({ success: false, error: getErrorMessage(error) }, { status: 500 });
   }
 }

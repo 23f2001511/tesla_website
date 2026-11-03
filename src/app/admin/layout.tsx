@@ -1,53 +1,75 @@
 'use client';
 
-import { usePathname } from 'next/navigation';
-import { useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { UserButton, useUser, SignOutButton } from '@clerk/nextjs';
+import { SidebarLogo } from '@/components/logo/SidebarLogo';
+
 import {
   LayoutDashboard,
   Users,
   Calendar,
-  Zap,
-  Image as ImageIcon,
   FileText,
   BookOpen,
   Trophy,
   GraduationCap,
+  Image as ImageIcon,
   Settings,
   LogOut,
   Menu,
   X,
-  ExternalLink,
-  ShieldCheck,
 } from 'lucide-react';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { user, isLoaded } = useUser();
+
+  // Accounts onboarded with a temporary password must set their own password
+  // before they can use the admin panel.
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      try {
+        const res = await fetch('/api/user/me');
+        const data = await res.json();
+        if (data.success && data.user?.mustChangePassword && pathname !== '/set-password') {
+          router.replace('/set-password');
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    checkOnboarding();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const navItems = [
     { name: 'Overview', href: '/admin', icon: LayoutDashboard },
-    { name: 'Team Roster', href: '/admin/team', icon: Users },
-    { name: 'Events & Schedule', href: '/admin/events', icon: Calendar },
-    { name: 'Flagship Hackathon', href: '/admin/flagship', icon: Zap },
-    { name: 'Photo Gallery', href: '/admin/gallery', icon: ImageIcon },
-    { name: 'Tech Blogs / Logs', href: '/admin/blogs', icon: FileText },
-    { name: 'Resource Vault', href: '/admin/resources', icon: BookOpen },
+    { name: 'Members', href: '/admin/members', icon: Users },
+    { name: 'Events', href: '/admin/events', icon: Calendar },
+    { name: 'Blogs', href: '/admin/blogs', icon: FileText },
+    { name: 'Resources', href: '/admin/resources', icon: BookOpen },
     { name: 'Achievements', href: '/admin/achievements', icon: Trophy },
-    { name: 'Alumni Network', href: '/admin/alumni', icon: GraduationCap },
-    { name: 'Site Settings', href: '/admin/settings', icon: Settings },
+    { name: 'Alumni', href: '/admin/alumni', icon: GraduationCap },
+    { name: 'Gallery', href: '/admin/gallery', icon: ImageIcon },
   ];
 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      router.push('/login');
+    } catch (err) {
+      console.error('Logout Error:', err);
+    }
+  };
+
   return (
-    <div className="min-h-screen flex bg-ink text-ivory">
+    <div className="min-h-screen flex bg-ink" data-theme="dark">
       {/* Mobile sidebar toggle */}
-      <div className="lg:hidden fixed top-20 left-4 z-40">
+      <div className="lg:hidden fixed top-4 left-4 z-40">
         <button
           onClick={() => setSidebarOpen(!sidebarOpen)}
-          className="p-2.5 bg-ink-2 border border-line text-acid hover:border-acid transition-colors shadow-xl"
-          aria-label="Toggle admin menu"
+          className="p-2 bg-acid text-acid-ink rounded-md shadow-lg"
         >
           {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
@@ -56,81 +78,72 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Sidebar */}
       <aside
         className={`
-          fixed lg:sticky top-16 left-0 z-30 h-[calc(100vh-4rem)] w-64 bg-ink border-r border-line transition-transform duration-300 flex flex-col
-          ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        `}
+        fixed lg:sticky top-0 left-0 z-30 h-screen w-64 bg-ink border-r border-line transition-transform duration-300
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+      `}
       >
-        {/* Admin Header */}
-        <div className="p-5 border-b border-line bg-ink-2">
-          <div className="flex items-center justify-between">
-            <span className="tag-mono-acid">// CONTROL PANEL</span>
-            <span className="tag-mono text-[9px] bg-ink px-2 py-0.5 border border-line text-acid">
-              ADMIN
-            </span>
+        <div className="flex flex-col h-full overflow-y-auto py-6 px-4 hide-scrollbar">
+          <div className="mb-10 flex items-center gap-3">
+            <SidebarLogo size={72} />
           </div>
-          <h2 className="display text-xl text-ivory mt-1">TESLA CORE</h2>
-          <div className="flex items-center gap-2 mt-2 text-xs text-muted font-mono truncate">
-            <ShieldCheck className="w-3.5 h-3.5 text-acid shrink-0" />
-            <span className="truncate">
-              {isLoaded && user ? user.primaryEmailAddress?.emailAddress : 'Superuser Session'}
-            </span>
-          </div>
-        </div>
 
-        {/* Navigation Items */}
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto hide-scrollbar">
-          {navItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
+          <div className="tag-mono mb-3">{'// Navigation'}</div>
+          <nav className="flex-1 space-y-1">
+            {navItems.map((item) => {
+              const isActive = pathname === item.href;
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-md font-mono text-[12px] tracking-[0.06em] uppercase transition-colors ${
+                    isActive
+                      ? 'bg-acid text-acid-ink'
+                      : 'text-ivory-2 hover:bg-white/[0.04] hover:text-ivory'
+                  }`}
+                >
+                  <item.icon className={`w-4 h-4 ${isActive ? '' : 'text-muted'}`} />
+                  {item.name}
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="mt-8 pt-6 border-t border-line">
+            <div className="tag-mono mb-3">{'// System'}</div>
+
+            <div className="space-y-1">
               <Link
-                key={item.name}
-                href={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 font-mono text-xs tracking-wider transition-all border ${
-                  isActive
-                    ? 'bg-acid text-acid-ink border-acid font-bold'
-                    : 'border-transparent text-ivory-2 hover:text-ivory hover:bg-ink-2 hover:border-line'
-                }`}
+                href="/dashboard/settings"
+                className="flex items-center gap-3 px-3 py-2 rounded-md font-mono text-[12px] tracking-[0.06em] uppercase text-ivory-2 hover:bg-white/[0.04] hover:text-ivory transition-colors"
               >
-                <item.icon className={`w-4 h-4 ${isActive ? 'text-acid-ink' : 'text-muted'}`} />
-                <span className="truncate">{item.name}</span>
+                <Settings className="w-4 h-4 text-muted" />
+                Settings
               </Link>
-            );
-          })}
-        </nav>
 
-        {/* Footer Actions */}
-        <div className="p-3 border-t border-line bg-ink-2 space-y-2">
-          <Link
-            href="/"
-            target="_blank"
-            className="flex items-center justify-between px-3 py-2 text-xs font-mono text-ivory-2 hover:text-acid border border-line bg-ink transition-colors"
-          >
-            <span>Live Site</span>
-            <ExternalLink className="w-3.5 h-3.5 text-muted" />
-          </Link>
-
-          <div className="flex items-center justify-between px-2 pt-1">
-            <div className="flex items-center gap-2">
-              <UserButton />
-              <span className="tag-mono text-[10px]">AUTH SESSION</span>
-            </div>
-            <SignOutButton>
               <button
-                className="p-1.5 text-muted hover:text-red-400 transition-colors"
-                title="Sign Out"
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-md font-mono text-[12px] tracking-[0.06em] uppercase text-acid hover:bg-acid/10 transition-colors"
               >
                 <LogOut className="w-4 h-4" />
+                Logout
               </button>
-            </SignOutButton>
+            </div>
+          </div>
+
+          <div className="mt-6 pt-6 border-t border-line flex items-center gap-3 px-1">
+            <div className="w-9 h-9 rounded-md bg-ink-3 border border-acid/40 flex items-center justify-center text-acid display text-base shrink-0">
+              A
+            </div>
+            <div>
+              <h3 className="display text-sm">Admin</h3>
+              <p className="font-mono text-[10px] tracking-[0.14em] uppercase text-muted">Super Admin</p>
+            </div>
           </div>
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-10 w-full overflow-x-hidden min-w-0">
-        {children}
-      </main>
+      {/* Main Content */}
+      <main className="flex-1 p-6 lg:p-8 overflow-x-hidden bg-ink">{children}</main>
     </div>
   );
 }

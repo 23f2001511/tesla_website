@@ -7,7 +7,7 @@ import { CTA } from "@/components/sections/CTA";
 
 export default function Home() {
   return (
-    <div className="flex flex-col overflow-x-hidden">
+    <div className="flex flex-col bg-ink overflow-x-hidden">
       <Hero />
       <Features />
       <FeaturedEvent />
@@ -17,4 +17,3 @@ export default function Home() {
     </div>
   );
 }
-

@@ -1,52 +1,77 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import { verifyAdminSession } from '@/lib/adminAuth';
 import { Event } from '@/models/Event';
+import { requireAuth, requireRole } from '@/lib/auth';
 
-export async function PUT(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+import { getErrorMessage } from '@/lib/errors';
+const CONTENT_MANAGERS = ['Admin', 'President', 'OfficeBearer'] as const;
+
+interface RouteContext {
+  params: Promise<{ id: string }>;
+}
+
+// ── GET Single Event ──────────────────────────────────────────────────────────
+export async function GET(_req: NextRequest, context: RouteContext) {
   try {
-    const auth = await verifyAdminSession();
-    if (!auth.authorized) {
-      return NextResponse.json({ success: false, error: auth.reason }, { status: 401 });
-    }
-
-    const { id } = await params;
-    const body = await req.json();
+    const { response: authError } = await requireAuth();
+    if (authError) return authError;
 
     await connectDB();
-    const updated = await Event.findByIdAndUpdate(id, body, { new: true });
-    if (!updated) {
-      return NextResponse.json({ success: false, error: 'Event not found' }, { status: 404 });
-    }
+    const { id } = await context.params;
 
-    return NextResponse.json({ success: true, event: updated });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    const event = await Event.findById(id).lean();
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+    return NextResponse.json({ event }, { status: 200 });
+  } catch (error){
+    return NextResponse.json({ error: getErrorMessage(error, 'Server Error') }, { status: 500 });
   }
 }
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// ── PATCH Update Event ────────────────────────────────────────────────────────
+export async function PATCH(request: NextRequest, context: RouteContext) {
   try {
-    const auth = await verifyAdminSession();
-    if (!auth.authorized) {
-      return NextResponse.json({ success: false, error: auth.reason }, { status: 401 });
-    }
+    const { response: authError } = await requireRole([...CONTENT_MANAGERS]);
+    if (authError) return authError;
 
-    const { id } = await params;
     await connectDB();
-    const deleted = await Event.findByIdAndDelete(id);
-    if (!deleted) {
-      return NextResponse.json({ success: false, error: 'Event not found' }, { status: 404 });
+    const { id } = await context.params;
+    const body = await request.json();
+
+    if (body.date) body.date = new Date(body.date);
+
+    const event = await Event.findByIdAndUpdate(
+      id,
+      { $set: body },
+      { new: true, runValidators: true }
+    );
+
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, message: 'Event deleted' });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json({ event }, { status: 200 });
+  } catch (error){
+    return NextResponse.json({ error: getErrorMessage(error, 'Update failed') }, { status: 500 });
+  }
+}
+
+// ── DELETE Event ──────────────────────────────────────────────────────────────
+export async function DELETE(_req: NextRequest, context: RouteContext) {
+  try {
+    const { response: authError } = await requireRole([...CONTENT_MANAGERS]);
+    if (authError) return authError;
+
+    await connectDB();
+    const { id } = await context.params;
+
+    const event = await Event.findByIdAndDelete(id);
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found' }, { status: 404 });
+    }
+    return NextResponse.json({ message: 'Event deleted successfully' }, { status: 200 });
+  } catch (error){
+    return NextResponse.json({ error: getErrorMessage(error, 'Deletion failed') }, { status: 500 });
   }
 }

@@ -1,62 +1,179 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import { verifyAdminSession } from '@/lib/adminAuth';
 import { Blog } from '@/models/Blog';
+import '@/models/User'; // register the User model so Blog.populate('author') resolves
+import { requireAuth, requireRole } from '@/lib/auth';
 
+import { getErrorMessage } from '@/lib/errors';
+export const dynamic = 'force-dynamic';
+
+const CONTENT_MANAGERS = ['Admin', 'President', 'OfficeBearer'] as const;
+
+// ================= GET ALL BLOGS =================
 export async function GET() {
   try {
-    const auth = await verifyAdminSession();
-    if (!auth.authorized) {
-      return NextResponse.json({ success: false, error: auth.reason }, { status: 401 });
-    }
+    const { response: authError } = await requireAuth();
+    if (authError) return authError;
 
     await connectDB();
-    const blogs = await Blog.find().sort({ createdAt: -1 });
-    return NextResponse.json({ success: true, blogs });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+
+    const blogs = await Blog.find()
+      .populate('author', 'name profileImage designation email')
+      .sort({ createdAt: -1 });
+
+    return NextResponse.json({
+      success: true,
+      blogs
+    });
+
+  } catch (error){
+    console.error('ADMIN BLOG FETCH ERROR:', error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: getErrorMessage(error)
+      },
+      { status: 500 }
+    );
   }
 }
 
-export async function POST(req: Request) {
+// ================= CREATE BLOG / BULK ACTION =================
+export async function POST(request: NextRequest) {
   try {
-    const auth = await verifyAdminSession();
-    if (!auth.authorized) {
-      return NextResponse.json({ success: false, error: auth.reason }, { status: 401 });
-    }
-
-    const body = await req.json();
-    if (!body.title || !body.content) {
-      return NextResponse.json(
-        { success: false, error: 'Title and content are required' },
-        { status: 400 }
-      );
-    }
+    const { payload, response: authError } = await requireRole([...CONTENT_MANAGERS]);
+    if (authError) return authError;
 
     await connectDB();
 
-    const slug =
-      body.slug ||
-      body.title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)+/g, '');
+    const body = await request.json();
 
-    const blog = await Blog.create({
-      ...body,
-      slug,
-      author: body.author || auth.name || 'Tesla Admin',
-      publishedDate:
-        body.publishedDate ||
-        new Date().toLocaleDateString('en-GB', {
-          day: '2-digit',
-          month: '2-digit',
-          year: '2-digit',
-        }),
+    // ===== BULK ACTION =====
+    if (body.bulkAction) {
+
+      const { ids, action } = body;
+
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'No blog IDs provided'
+          },
+          { status: 400 }
+        );
+      }
+
+      if (action === 'Delete') {
+
+        await Blog.deleteMany({
+          _id: { $in: ids }
+        });
+
+      } else {
+
+        const status =
+          action === 'Publish'
+            ? 'Published'
+            : 'Rejected';
+
+        await Blog.updateMany(
+          {
+            _id: { $in: ids }
+          },
+          {
+            $set: {
+              status
+            }
+          }
+        );
+      }
+
+      return NextResponse.json({
+        success: true
+      });
+    }
+
+    // ===== CREATE BLOG =====
+
+    const {
+      title,
+      content,
+      category,
+      tags,
+      coverImage,
+      authorId
+    } = body;
+
+    if (!title || !content || !category) {
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Title, content and category are required'
+        },
+        {
+          status: 400
+        }
+      );
+    }
+
+    const cleanTags = Array.isArray(tags)
+      ? tags
+      : tags
+          ?.split(',')
+          .map((tag: string) => tag.trim())
+          .filter(Boolean) || [];
+
+    // Default the author to the authenticated content manager when not supplied.
+    const resolvedAuthor = authorId || payload?.userId;
+
+    if (!resolvedAuthor) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Unable to resolve blog author'
+        },
+        {
+          status: 400
+        }
+      );
+    }
+
+    const newBlog = await Blog.create({
+      title,
+      content,
+      category,
+      tags: cleanTags,
+      coverImage: coverImage || '',
+      status: 'Published',
+      author: resolvedAuthor,
+      views: 0,
+      likes: []
     });
 
-    return NextResponse.json({ success: true, blog }, { status: 201 });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    return NextResponse.json(
+      {
+        success: true,
+        blog: newBlog
+      },
+      {
+        status: 201
+      }
+    );
+
+  } catch (error){
+
+    console.error('ADMIN BLOG CREATE ERROR:', error);
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: getErrorMessage(error)
+      },
+      {
+        status: 500
+      }
+    );
   }
 }

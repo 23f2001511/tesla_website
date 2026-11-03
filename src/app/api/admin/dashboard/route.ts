@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
-import { verifyAdminSession } from '@/lib/adminAuth';
 import { User } from '@/models/User';
 import { Team } from '@/models/Team';
 import { Event } from '@/models/Event';
+import { requireRole } from '@/lib/auth';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    const auth = await verifyAdminSession();
-    if (!auth.authorized) {
-      return NextResponse.json({ success: false, error: auth.reason }, { status: 401 });
-    }
+    // Read-only analytics — every admin-panel role may view them.
+    const { response: authError } = await requireRole(['Admin', 'President', 'OfficeBearer']);
+    if (authError) return authError;
 
     await connectDB();
 
@@ -22,7 +23,7 @@ export async function GET() {
     const totalTeams = await Team.countDocuments();
 
     const upcomingEvents = await Event.countDocuments({
-      status: 'upcoming',
+      date: { $gte: new Date() },
     });
 
     return NextResponse.json({

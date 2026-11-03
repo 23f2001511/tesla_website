@@ -1,121 +1,118 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { Blog } from '@/models/Blog';
-import mongoose from 'mongoose';
-import { cookies } from 'next/headers';
-import jwt from 'jsonwebtoken';
+import { requireAuth } from '@/lib/auth';
+import type { IBlog } from '@/types/models';
 
-const JWT_SECRET =
-  process.env.JWT_SECRET || 'fallback_secret_for_development_only';
+import { getErrorMessage } from '@/lib/errors';
+export const dynamic = 'force-dynamic';
 
-async function getAuthUserId(): Promise<string | null> {
+const MEMBER_STATUSES = ['Draft', 'Pending'] as const;
+// A member may only edit a blog that is still a Draft or was Rejected.
+const EDITABLE_STATUSES = ['Draft', 'Rejected'];
+
+type RouteContext = { params: Promise<{ id: string }> };
+
+// ─── GET: read a single blog (own blog, or any Published one) + count a view ──
+export async function GET(_request: NextRequest, context: RouteContext) {
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('token')?.value;
-    if (!token) return null;
+    const { payload, response: authError } = await requireAuth();
+    if (authError) return authError;
 
-    const decoded = jwt.verify(token, JWT_SECRET) as { userId: string };
-    return decoded.userId;
-  } catch {
-    return null;
-  }
-}
-
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
     await connectDB();
+    const { id } = await context.params;
 
-    let blog = null;
-    if (mongoose.Types.ObjectId.isValid(id)) {
-      blog = await Blog.findById(id);
-    } else {
-      blog = await Blog.findOne({ slug: id });
-    }
-
-    if (!blog || blog.status !== 'Published') {
+    const blog = await Blog.findById(id).lean<IBlog>();
+    if (!blog) {
       return NextResponse.json({ success: false, error: 'Blog not found' }, { status: 404 });
     }
 
-    // Increment views
-    await Blog.findByIdAndUpdate(blog._id, { $inc: { views: 1 } });
+    const isAuthor = blog.author?.toString() === payload!.userId;
+    if (blog.status !== 'Published' && !isAuthor) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Count a read only when someone other than the author views a live blog.
+    if (blog.status === 'Published' && !isAuthor) {
+      await Blog.findByIdAndUpdate(id, { $inc: { views: 1 } });
+    }
 
     return NextResponse.json({ success: true, blog });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  } catch (error){
+    return NextResponse.json({ success: false, error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
-export async function PUT(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// ─── PUT: author edits / resubmits a Draft or Rejected blog ──────────────────
+export async function PUT(request: NextRequest, context: RouteContext) {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const { id } = await params;
-    const body = await req.json();
+    const { payload, response: authError } = await requireAuth();
+    if (authError) return authError;
 
     await connectDB();
+    const { id } = await context.params;
+    const body = await request.json();
+
     const blog = await Blog.findById(id);
     if (!blog) {
       return NextResponse.json({ success: false, error: 'Blog not found' }, { status: 404 });
     }
-
-    if (!blog.authorId || blog.authorId.toString() !== userId) {
+    if (blog.author.toString() !== payload!.userId) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
+    }
+    if (!EDITABLE_STATUSES.includes(blog.status)) {
       return NextResponse.json(
-        { success: false, error: 'You can only edit your own blogs' },
-        { status: 403 }
+        { success: false, error: 'Only Draft or Rejected blogs can be edited.' },
+        { status: 400 }
       );
     }
 
-    const updated = await Blog.findByIdAndUpdate(id, body, { new: true });
-    return NextResponse.json({ success: true, blog: updated });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    const { title, content, category, coverImage, tags, status } = body;
+    if (!title || !content || !category) {
+      return NextResponse.json(
+        { success: false, error: 'Title, content and category are required.' },
+        { status: 400 }
+      );
+    }
+
+    const cleanTags = Array.isArray(tags)
+      ? tags
+      : tags?.split(',').map((t: string) => t.trim()).filter(Boolean) || [];
+
+    blog.title      = title;
+    blog.content    = content;
+    blog.category   = category;
+    blog.coverImage = coverImage || '';
+    blog.tags       = cleanTags;
+    if (MEMBER_STATUSES.includes(status)) blog.status = status;
+    await blog.save();
+
+    return NextResponse.json({ success: true, blog });
+  } catch (error){
+    return NextResponse.json({ success: false, error: getErrorMessage(error) }, { status: 500 });
   }
 }
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
+// ─── DELETE: author removes their own blog ───────────────────────────────────
+export async function DELETE(_request: NextRequest, context: RouteContext) {
   try {
-    const userId = await getAuthUserId();
-    if (!userId) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const { id } = await params;
+    const { payload, response: authError } = await requireAuth();
+    if (authError) return authError;
 
     await connectDB();
+    const { id } = await context.params;
+
     const blog = await Blog.findById(id);
     if (!blog) {
       return NextResponse.json({ success: false, error: 'Blog not found' }, { status: 404 });
     }
-
-    if (!blog.authorId || blog.authorId.toString() !== userId) {
-      return NextResponse.json(
-        { success: false, error: 'You can only delete your own blogs' },
-        { status: 403 }
-      );
+    if (blog.author.toString() !== payload!.userId) {
+      return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
-    await Blog.findByIdAndDelete(id);
-    return NextResponse.json({ success: true, message: 'Blog deleted' });
-  } catch (error: any) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    await blog.deleteOne();
+    return NextResponse.json({ success: true });
+  } catch (error){
+    return NextResponse.json({ success: false, error: getErrorMessage(error) }, { status: 500 });
   }
 }

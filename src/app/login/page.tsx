@@ -3,8 +3,17 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
-import { ArrowUpRight, ShieldCheck, Lock } from 'lucide-react';
+import { Mail, Lock, LogIn, AlertCircle } from 'lucide-react';
+
+const ROLE_LANDING: Record<string, string> = {
+  Admin: '/admin',
+  PI: '/dashboard/pi',
+  President: '/dashboard/leadership',
+  OfficeBearer: '/dashboard/leadership',
+  TeamLeader: '/dashboard/members',
+  TeamMember: '/dashboard/members',
+  Alumni: '/dashboard/alumni',
+};
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -15,6 +24,11 @@ export default function LoginPage() {
   const router = useRouter();
 
   const handleLogin = async () => {
+    if (!email || !password) {
+      setError('Please enter both email and password.');
+      return;
+    }
+
     try {
       setLoading(true);
       setError('');
@@ -28,128 +42,98 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error || 'Login failed');
+        setError(data.error || 'Login failed. Check your credentials and try again.');
         return;
       }
 
-      if (data.role === 'Admin') {
-        router.push('/admin');
-      } else {
-        router.push('/');
-      }
+      // Accounts created with a temporary password (onboarding) are forced to
+      // set a personal password before they can use their dashboard.
+      const destination = data.mustChangePassword ? '/set-password' : (ROLE_LANDING[data.role] || '/');
+      router.push(destination);
     } catch (err) {
       console.error(err);
-      setError('Something went wrong');
+      setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="bg-ink min-h-screen flex items-center justify-center px-4 py-20 bg-terminal">
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-        className="w-full max-w-md space-y-4"
-      >
-        {/* Terminal chrome */}
-        <div className="border border-line corner-marks bg-ink-2">
-          <div className="border-b border-line px-4 py-2.5 flex items-center justify-between bg-ink">
-            <span className="tag-mono">AUTH.SH — GATEWAY</span>
-            <span className="flex gap-1.5">
-              <span className="w-2 h-2 border border-line-2" />
-              <span className="w-2 h-2 border border-line-2" />
-              <span className="w-2 h-2 bg-acid" />
-            </span>
-          </div>
-
-          <div className="p-8 sm:p-10">
-            <div className="tag-mono-acid mb-4">// ACCESS</div>
-            <h1 className="display text-4xl text-ivory mb-6">
-              SIGN IN<span className="text-acid">_</span>
-            </h1>
-
-            {/* Clerk OAuth Fast Access Button */}
-            <Link
-              href="/admin"
-              className="w-full py-3.5 mb-6 bg-acid text-acid-ink font-mono text-xs uppercase tracking-widest font-bold flex items-center justify-center gap-2 hover:bg-ivory transition-colors border border-acid"
-            >
-              <ShieldCheck className="w-4 h-4" /> Admin Access (Clerk OAuth) →
-            </Link>
-
-            <div className="relative flex items-center justify-center mb-6">
-              <div className="border-t border-line w-full" />
-              <span className="bg-ink-2 px-3 tag-mono text-[10px] text-muted shrink-0">
-                OR LOCAL CREDENTIALS
-              </span>
+    <div className="min-h-screen bg-ink flex items-center justify-center p-4 bg-terminal">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 rounded-md bg-acid text-acid-ink flex items-center justify-center display font-bold">
+              T
             </div>
+            <span className="display text-2xl">TESLA</span>
+          </div>
+          <div className="tag-mono-acid mb-2">{'// Authenticate'}</div>
+          <h1 className="display text-3xl">Welcome back</h1>
+          <p className="text-sm text-muted mt-2">Sign in to your TESLA account</p>
+        </div>
 
-            <form
-              className="space-y-5"
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleLogin();
-              }}
-            >
-              <div>
-                <label className="tag-mono block mb-2">EMAIL</label>
+        <div className="card-brut rounded-xl p-6 corner-marks relative">
+          {error && (
+            <div className="flex items-center gap-2 bg-acid/10 border border-acid/30 rounded-md px-3.5 py-2.5 text-sm text-acid mb-5">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" /> {error}
+            </div>
+          )}
+
+          <form className="space-y-5" onSubmit={(e) => { e.preventDefault(); handleLogin(); }}>
+            <div>
+              <label className="block font-mono text-[11px] tracking-[0.14em] uppercase text-muted mb-2">
+                Email address
+              </label>
+              {/* Icon sits in a flex row — never overlaps the typed text */}
+              <div className="flex items-center gap-3 input-brut rounded-md !px-3.5">
+                <Mail className="w-4 h-4 text-muted shrink-0 pointer-events-none" />
                 <input
                   type="email"
-                  required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  className="flex-1 min-w-0 bg-transparent outline-none font-mono text-[13px] text-ivory placeholder:text-muted"
                   placeholder="name@college.edu"
-                  className="w-full bg-ink border border-line focus:border-acid px-4 py-3 font-mono text-sm text-ivory placeholder:text-muted focus:outline-none transition-colors"
+                  autoComplete="email"
                 />
               </div>
+            </div>
 
-              <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="tag-mono">PASSWORD</label>
-                  <a href="#" className="tag-mono text-acid hover:text-ivory transition-colors">
-                    FORGOT?
-                  </a>
-                </div>
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="font-mono text-[11px] tracking-[0.14em] uppercase text-muted">Password</label>
+                <a href="#" className="font-mono text-[11px] tracking-[0.14em] uppercase text-acid hover:underline">
+                  Forgot?
+                </a>
+              </div>
+              <div className="flex items-center gap-3 input-brut rounded-md !px-3.5">
+                <Lock className="w-4 h-4 text-muted shrink-0 pointer-events-none" />
                 <input
                   type="password"
-                  required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
+                  className="flex-1 min-w-0 bg-transparent outline-none font-mono text-[13px] text-ivory placeholder:text-muted"
                   placeholder="••••••••"
-                  className="w-full bg-ink border border-line focus:border-acid px-4 py-3 font-mono text-sm text-ivory placeholder:text-muted focus:outline-none transition-colors"
+                  autoComplete="current-password"
                 />
               </div>
-
-              {error && (
-                <div className="border border-acid px-4 py-3 font-mono text-xs text-acid">
-                  ERR: {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="btn-brut w-full justify-center"
-              >
-                {loading ? 'AUTHENTICATING…' : 'SIGN IN (EMAIL/PASS)'}
-                <ArrowUpRight className="w-4 h-4" />
-              </button>
-            </form>
-
-            <div className="tag-mono mt-8 text-center">
-              NO ACCOUNT?{' '}
-              <Link href="/contact" className="text-acid hover:text-ivory transition-colors">
-                REQUEST ONE
-              </Link>
             </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="btn-acid w-full justify-center mt-2 disabled:opacity-60"
+            >
+              {loading ? 'Signing in...' : 'Sign In'} <LogIn className="w-4 h-4" />
+            </button>
+          </form>
+
+          <div className="mt-6 pt-5 border-t border-line text-center font-mono text-[11px] tracking-[0.14em] uppercase text-muted">
+            Don&apos;t have an account?{' '}
+            <Link href="/register" className="text-acid hover:underline">Create one</Link>
           </div>
         </div>
-
-        <div className="tag-mono mt-4 text-center">
-          PROTECTED TERMINAL — UNAUTHORIZED ATTEMPTS ARE LOGGED
-        </div>
-      </motion.div>
+      </div>
     </div>
   );
 }
