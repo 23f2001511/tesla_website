@@ -13,7 +13,7 @@ import {
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { useLoaderEffect } from '@/lib/hooks';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaLinkedin, FaGithub } from 'react-icons/fa';
+import { FaLinkedin, FaGithub } from '@/components/ui/SocialIcons';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface Achievement {

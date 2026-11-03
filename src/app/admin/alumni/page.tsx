@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaLinkedin, FaGithub } from 'react-icons/fa';
+import { FaLinkedin, FaGithub } from '@/components/ui/SocialIcons';
 import {
   GraduationCap, Plus, Search, ChevronDown, Trash2, Key,
   RefreshCw, AlertCircle, Loader2, Users, Briefcase,

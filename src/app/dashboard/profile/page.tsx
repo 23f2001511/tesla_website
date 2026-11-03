@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { FaGithub, FaLinkedin,
-  FaTwitter, FaInstagram} from 'react-icons/fa'
+import { FaGithub, FaLinkedin, FaTwitter, FaInstagram } from '@/components/ui/SocialIcons';
 import {
   ArrowLeft, CheckCircle2, Copy, Share2, Globe,FileText, Calendar, BookOpen, Trophy, Eye,
   Star, Code2, MapPin, Phone, Mail, Briefcase, GraduationCap,

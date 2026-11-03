@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
 // Must match process.env.JWT_SECRET used in /api/auth/login/route.ts exactly.
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback_secret_for_development_only';
+const JWT_SECRET = process.env.JWT_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'fallback_secret_for_development_only');
 const secretKey = new TextEncoder().encode(JWT_SECRET);
 
 // OfficeBearer shares the admin panel UI — its reduced powers are enforced by

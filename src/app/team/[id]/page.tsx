@@ -1,12 +1,13 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import {
   ArrowLeft, Award, Briefcase, Calendar, ExternalLink, Globe,
   Sparkles,
 } from 'lucide-react';
-import { FaGithub, FaLinkedin, FaTwitter, FaInstagram } from 'react-icons/fa';
+import { FaGithub, FaLinkedin, FaTwitter, FaInstagram } from '@/components/ui/SocialIcons';
 import { useApi } from '@/lib/api';
 import { Avatar, ErrorState } from '@/components/ui/States';
 import { ScrollReveal, StaggerGroup, StaggerItem } from '@/components/ui/ScrollReveal';
@@ -141,15 +142,19 @@ export default function TeamMemberProfile() {
   const languages = m.languages || [];
   const domains = m.preferredDomains || [];
   const links = m.socialLinks || {};
-  const socials = [
-    { key: 'linkedin', icon: FaLinkedin, label: 'LinkedIn', href: links.linkedin },
-    { key: 'github', icon: FaGithub, label: 'GitHub', href: links.github },
-    { key: 'instagram', icon: FaInstagram, label: 'Instagram', href: links.instagram },
-    { key: 'twitter', icon: FaTwitter, label: 'X / Twitter', href: links.twitter },
-    { key: 'portfolio', icon: Globe, label: 'Portfolio', href: m.portfolio },
-  ].filter(
-    (s): s is { key: string; icon: typeof FaGithub | typeof Globe; label: string; href: string } => !!s.href
-  );
+  type SocialItem = {
+    key: string;
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    href: string;
+  };
+
+  const socials: SocialItem[] = [];
+  if (links.linkedin) socials.push({ key: 'linkedin', icon: FaLinkedin, label: 'LinkedIn', href: links.linkedin });
+  if (links.github) socials.push({ key: 'github', icon: FaGithub, label: 'GitHub', href: links.github });
+  if (links.instagram) socials.push({ key: 'instagram', icon: FaInstagram, label: 'Instagram', href: links.instagram });
+  if (links.twitter) socials.push({ key: 'twitter', icon: FaTwitter, label: 'X / Twitter', href: links.twitter });
+  if (m.portfolio) socials.push({ key: 'portfolio', icon: Globe, label: 'Portfolio', href: m.portfolio });
 
   // Every public field not surfaced in a section above, so nothing the
   // backend exposes is silently dropped from the profile.

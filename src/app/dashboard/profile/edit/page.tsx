@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { FaGithub, FaLinkedin, FaTwitter, FaInstagram } from 'react-icons/fa';
+import { FaGithub, FaLinkedin, FaTwitter, FaInstagram } from '@/components/ui/SocialIcons';
 import {
   ArrowLeft, Save, Upload, User as UserIcon, Globe, Code2, GraduationCap,
   Bell, Lock, AlertCircle, CheckCircle2, Loader2, Plus, Eye, Shield, X,

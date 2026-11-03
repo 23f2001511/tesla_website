@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { Blog } from '@/models/Blog';
-import { requireAuth } from '@/lib/auth';
+import { requireAuth, getAuthPayload } from '@/lib/auth';
 import type { IBlog } from '@/types/models';
 
 import { getErrorMessage } from '@/lib/errors';
@@ -16,8 +16,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 // ─── GET: read a single blog (own blog, or any Published one) + count a view ──
 export async function GET(_request: NextRequest, context: RouteContext) {
   try {
-    const { payload, response: authError } = await requireAuth();
-    if (authError) return authError;
+    const payload = await getAuthPayload();
 
     await connectDB();
     const { id } = await context.params;
@@ -27,7 +26,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: 'Blog not found' }, { status: 404 });
     }
 
-    const isAuthor = blog.author?.toString() === payload!.userId;
+    const isAuthor = payload ? blog.author?.toString() === payload.userId : false;
     if (blog.status !== 'Published' && !isAuthor) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }

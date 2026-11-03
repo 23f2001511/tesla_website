@@ -42,10 +42,14 @@ export interface TokenPayload {
  * means tokens could be forged, so we fail closed.
  */
 function getSecret(): string {
-  return (
-    process.env.JWT_SECRET ||
-    'fallback_secret_for_development_only'
-  );
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET environment variable is missing.');
+    }
+    return 'fallback_secret_for_development_only';
+  }
+  return secret;
 }
 
 /**
@@ -112,7 +116,21 @@ export async function requireRole(allowed: Role[]): Promise<{
     };
   }
 
-  if (!allowed.includes(payload.role)) {
+  // Verify live role and active status against database (defense against stale JWT role)
+  await connectDB();
+  const user = await User.findById(payload.userId).select('role status').lean<IUser>();
+  if (!user || user.status === 'inactive') {
+    return {
+      payload: null,
+      response: NextResponse.json(
+        { success: false, error: 'Forbidden: Account is inactive or not found' },
+        { status: 403 }
+      ),
+    };
+  }
+
+  const liveRole = (user.role as Role) || payload.role;
+  if (!allowed.includes(liveRole)) {
     return {
       payload: null,
       response: NextResponse.json(
@@ -122,7 +140,7 @@ export async function requireRole(allowed: Role[]): Promise<{
     };
   }
 
-  return { payload, response: null };
+  return { payload: { ...payload, role: liveRole }, response: null };
 }
 
 /**

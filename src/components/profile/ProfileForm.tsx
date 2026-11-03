@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaGithub, FaLinkedin, FaTwitter, FaInstagram } from 'react-icons/fa';
+import { FaGithub, FaLinkedin, FaTwitter, FaInstagram } from '@/components/ui/SocialIcons';
 import {
   X, Save, Upload, User, Globe, Code2, GraduationCap,
   Bell, Lock, ChevronRight, AlertCircle, CheckCircle2,

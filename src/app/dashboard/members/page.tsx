@@ -464,7 +464,7 @@ export default function MembersDashboardWorkspace() {
                 />
                 <QuickAction
                   icon={Trophy} label="Add Club Achievements" sub="View your milestones"
-                  accent="#d8ff3d" onClick={() => router.push('/dashboard/members/achievments')}
+                  accent="#d8ff3d" onClick={() => router.push('/dashboard/members/achievements')}
                 />
                 {/* Visible only to members holding the Achievement Manager grant.
                     Reuses the existing club Achievement module — no duplicate page. */}

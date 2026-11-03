@@ -122,11 +122,12 @@ export async function POST(req: NextRequest) {
   try {
     const actor = await getAuthPayload();
     if (!actor) return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    if (!isManager(actor.role)) {
-      return NextResponse.json({ success: false, message: 'You do not have permission to manage teams.' }, { status: 403 });
-    }
 
     await connectDB();
+    const actorDoc = await User.findById(actor.userId).select('role status').lean<{ role?: string; status?: string }>();
+    if (!actorDoc || actorDoc.status === 'inactive' || !isManager(actorDoc.role)) {
+      return NextResponse.json({ success: false, message: 'You do not have permission to manage teams.' }, { status: 403 });
+    }
     const { name, description, coverImage } = await req.json();
 
     if (!name || !name.trim()) {
@@ -264,11 +265,12 @@ export async function DELETE(req: NextRequest) {
   try {
     const actor = await getAuthPayload();
     if (!actor) return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
-    if (!isManager(actor.role)) {
-      return NextResponse.json({ success: false, message: 'You do not have permission to manage teams.' }, { status: 403 });
-    }
 
     await connectDB();
+    const actorDoc = await User.findById(actor.userId).select('role status').lean<{ role?: string; status?: string }>();
+    if (!actorDoc || actorDoc.status === 'inactive' || !isManager(actorDoc.role)) {
+      return NextResponse.json({ success: false, message: 'You do not have permission to manage teams.' }, { status: 403 });
+    }
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ success: false, message: 'Team id is required' }, { status: 400 });

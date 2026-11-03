@@ -45,17 +45,9 @@ export function PremiumLogoLink({
   const router = useRouter();
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
-    // Plain left-click only; every modifier / auxiliary click stays native.
-    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    if (busy.current) {
-      e.preventDefault();
-      return;
+    if (e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+      setBursting(true);
     }
-    e.preventDefault();
-    busy.current = true;
-    setBursting(true);
-    // Charge-up flash, then proceed. Effect total: ~650ms.
-    window.setTimeout(() => router.push(href), 660);
   };
 
   const handleBurstEnd = () => {

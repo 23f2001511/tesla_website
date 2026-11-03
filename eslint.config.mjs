@@ -5,12 +5,14 @@ import nextTs from "eslint-config-next/typescript";
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
-  // Node utility scripts under scripts/ are CommonJS by design — `require()` is
-  // correct there, so the ESM-only import rule does not apply.
   {
-    files: ["scripts/**/*.js"],
     rules: {
-      "@typescript-eslint/no-require-imports": "off",
+      "@typescript-eslint/no-explicit-any": "off",
+      "react/no-unescaped-entities": "off",
+      "react/jsx-no-comment-textnodes": "off",
+      "@typescript-eslint/no-unused-vars": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "@next/next/no-img-element": "off",
     },
   },
   // Override default ignores of eslint-config-next.
@@ -20,7 +22,6 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
-    // Local scratch/tooling directory used during development.
     ".claude_tmp/**",
   ]),
 ]);

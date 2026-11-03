@@ -210,6 +210,9 @@ export async function POST(req: Request) {
       if (mail.response) console.error('   Server response:', mail.response);
     }
 
+    const memberObj = newUser && typeof newUser.toObject === 'function' ? newUser.toObject() : newUser;
+    const { password: _pw, ...safeMember } = memberObj || {};
+
     return NextResponse.json({
       success: true,
       message: emailSent
@@ -217,7 +220,7 @@ export async function POST(req: Request) {
         : `Member created, but the onboarding email FAILED: ${emailError}`,
       emailSent,
       ...(emailSent ? {} : { emailError }),
-      member: newUser,
+      member: safeMember,
     }, { status: 201 });
   } catch (error) {
     console.error('Create Member Error:', error);

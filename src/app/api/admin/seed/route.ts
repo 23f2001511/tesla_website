@@ -46,7 +46,15 @@ export async function GET() {
       });
     }
 
-    const hashedPassword = await bcrypt.hash(SEED_ADMIN_PASSWORD, 10);
+    const seedPassword = process.env.ADMIN_SEED_PASSWORD;
+    if (!seedPassword && process.env.NODE_ENV === 'production') {
+      return NextResponse.json(
+        { success: false, message: 'ADMIN_SEED_PASSWORD environment variable must be set in production to seed the initial Admin.' },
+        { status: 500 }
+      );
+    }
+    const finalPassword = seedPassword || 'Admin123456';
+    const hashedPassword = await bcrypt.hash(finalPassword, 10);
 
     await User.create({
       name: SEED_ADMIN_NAME,

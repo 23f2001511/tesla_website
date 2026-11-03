@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { Search, Eye } from 'lucide-react';
 import { useApi } from '@/lib/api';
 import { Avatar, EmptyState, ErrorState, SkeletonGrid } from '@/components/ui/States';
@@ -110,7 +111,8 @@ export default function BlogsPage() {
           ) : (
             <StaggerGroup className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
               {filtered.map((b) => (
-                <StaggerItem key={b.id} className="h-full">
+                <StaggerItem key={b.id || b._id} className="h-full">
+                <Link href={`/blogs/${b.id || b._id}`} className="block h-full group">
                 <article className="card-brut rounded-xl overflow-hidden flex flex-col h-full hover:-translate-y-0.5 transition-transform">
                   {b.coverImage ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -127,7 +129,7 @@ export default function BlogsPage() {
                       </span>
                       {b.isFeatured && <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted">★ featured</span>}
                     </div>
-                    <h3 className="display text-xl leading-snug">{b.title}</h3>
+                    <h3 className="display text-xl leading-snug group-hover:text-acid transition-colors">{b.title}</h3>
                     <p className="text-xs text-ivory-2 mt-2 line-clamp-3 flex-1">{b.excerpt}…</p>
 
                     {(b.tags?.length ?? 0) > 0 && (
@@ -152,6 +154,7 @@ export default function BlogsPage() {
                     </div>
                   </div>
                 </article>
+                </Link>
                 </StaggerItem>
               ))}
             </StaggerGroup>

@@ -16,7 +16,7 @@ export async function PUT(req: Request) {
       newPassword
     } = await req.json();
 
-    const user = await User.findById(payload!.userId);
+    const user = await User.findById(payload!.userId).select('+password');
 
     if (!user) {
       return NextResponse.json(

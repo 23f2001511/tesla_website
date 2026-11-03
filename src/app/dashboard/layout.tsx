@@ -109,7 +109,7 @@ export default function DashboardLayout({
       { name: 'Resources', href: '/dashboard/resources', icon: BookOpen },
       { name: 'My Journey', href: '/dashboard/my-journey', icon: Trophy },
       { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon },
-      { name: 'Club Achievments', href: '/dashboard/members/achievments', icon: Trophy },
+      { name: 'Club Achievements', href: '/dashboard/members/achievements', icon: Trophy },
     ];
 
   } else if (userRole === 'TeamMember') {
@@ -120,7 +120,7 @@ export default function DashboardLayout({
       { name: 'Resources', href: '/dashboard/resources', icon: BookOpen },
       { name: 'My Journey', href: '/dashboard/my-journey', icon: Trophy },
       { name: 'Gallery', href: '/dashboard/gallery', icon: ImageIcon },
-      { name: 'Club Achievments', href: '/dashboard/members/achievments', icon: Trophy },
+      { name: 'Club Achievements', href: '/dashboard/members/achievements', icon: Trophy },
     ];
 
   } else if (userRole === 'OfficeBearer') {
